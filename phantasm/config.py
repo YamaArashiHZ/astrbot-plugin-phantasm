@@ -35,7 +35,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "backend": "pillow",
         "font_path": "",
         "font_size_scale": 1.0,
-        "emoji_mode": "strip",           # strip: 移除 emoji / keep: 交给字体渲染
+        "emoji_mode": "strip",           # strip: 移除 emoji（Pillow 无法渲染彩色 emoji）/ keep: 保留（需 HTML 后端）
         "name_color": "#000000",
         "handle_color": "#536471",
         "verified_badge": True,

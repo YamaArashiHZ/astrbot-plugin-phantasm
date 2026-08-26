@@ -112,9 +112,6 @@ class BilibiliFetcher(BaseFetcher):
                         p.extra["content_from_opus"] = True
                 except Exception:  # noqa: BLE001
                     pass
-                if not p.content:
-                    self.logger.warning(
-                        f"[bilibili:{p.post_id}] feed 无正文且 OPUS 网页回退仍未提取到内容")
         return FetchResult(posts=posts[:limit], total=len(posts))
 
     async def _fetch_opus_content(self, post_id: str) -> tuple[str, str]:
@@ -315,15 +312,9 @@ class BilibiliFetcher(BaseFetcher):
             if author_name and author_name != self.account.account_id:
                 account_name = author_name
 
-            # 诊断：有图但正文为空，打印整条动态 JSON 片段，便于定位特殊 type 的文本字段
+            # 有图但 feed 无正文：交由 fetch_recent 的 OPUS 回退补齐，此处仅留简短调试信息
             if not content_text and media:
-                try:
-                    import json as _json
-                    self.logger.warning(
-                        f"[bilibili:{post_id}] 有图但未提取到正文 type={dtype} "
-                        f"item={_json.dumps(item, ensure_ascii=False)[:2000]!r}")
-                except Exception:
-                    pass
+                self.logger.debug(f"[bilibili:{post_id}] feed 无正文，将用 OPUS 网页补齐 type={dtype}")
 
             return Post(
                 platform="bilibili",

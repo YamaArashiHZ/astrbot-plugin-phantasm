@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from io import BytesIO
 from pathlib import Path
@@ -34,6 +35,10 @@ GAP = 8
 # 无中文字体时的兜底：首次渲染前尝试下载 Noto Sans CJK SC（OFL 许可，一次性、落盘于插件 data 目录）。
 FONT_DOWNLOAD_URL = ("https://raw.githubusercontent.com/notofonts/noto-cjk/main/"
                      "Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf")
+# 彩色 emoji 字体：Pillow 用 CBDT 位图字体渲染彩色 emoji（仅在固定 strike 下可用，需缩放）。
+EMOJI_FONT_URL = ("https://github.com/googlefonts/noto-emoji/raw/main/fonts/NotoColorEmoji.ttf")
+_EMOJI_RE = re.compile(
+    "[\U0001F300-\U0001FAFF\u2600-\u27BF\uFE0F\u2B00-\u2BFF\u2190-\u21FF\u2700-\u27BF]")
 
 
 class CardRenderer:
@@ -47,6 +52,10 @@ class CardRenderer:
         self.fonts = FontResolver(override=str(self.render_cfg.get("font_path", "")), logger=logger)
         self._downloader: Optional[callable] = None
         self._font_ensured = False
+        self._emoji_font = None          # 彩色 emoji 字体（Pillow CBDT 位图）
+        self._emoji_font_size = 109      # Noto Color Emoji 可用 strike
+        self._emoji_h = 22               # emoji 缩放后的显示高度（随正文行高）
+        self._emoji_cache: dict[str, Image.Image] = {}
         try:
             self._scale = max(0.8, min(1.5, float(self.render_cfg.get("font_size_scale", 1.0) or 1.0)))
         except (TypeError, ValueError):
@@ -142,6 +151,92 @@ class CardRenderer:
         else:
             self._font_ensured = True
 
+    async def _ensure_emoji_font(self) -> None:
+        """确保彩色 emoji 字体可用（emoji_mode != strip 时）。"""
+        mode = str(self.render_cfg.get("emoji_mode", "keep"))
+        if mode in ("strip", "remove") or self._emoji_font is not None or not self._store_dir:
+            return
+        fonts_dir = self._store_dir / "fonts"
+        target = fonts_dir / "NotoColorEmoji.ttf"
+        if not target.exists() and self._downloader:
+            try:
+                self.logger.info("正在准备彩色 emoji 字体…")
+                data = await self._downloader(EMOJI_FONT_URL)
+                target.write_bytes(data)
+            except Exception as e:  # noqa: BLE001
+                self.logger.warning(f"emoji 字体不可用，emoji 将被移除：{e}")
+                return
+        if target.exists():
+            f = self._load_emoji_font(str(target))
+            if f:
+                self._emoji_font = f
+                self.logger.info("彩色 emoji 渲染已启用")
+
+    @staticmethod
+    def _load_emoji_font(path: str):
+        for size in (128, 109, 96, 64):
+            try:
+                return ImageFont.truetype(path, size)
+            except Exception:  # noqa: BLE001
+                continue
+        return None
+
+    def _emoji_glyph(self, ch: str, line_h: int) -> Optional[Image.Image]:
+        h = max(12, int(line_h))
+        key = f"{ch}:{h}"
+        if key in self._emoji_cache:
+            return self._emoji_cache[key]
+        if self._emoji_font is None:
+            return None
+        try:
+            img = Image.new("RGBA", (200, int(self._emoji_font_size * 1.6)), (0, 0, 0, 0))
+            d = ImageDraw.Draw(img)
+            d.text((0, 0), ch, font=self._emoji_font)
+            bb = img.getbbox()
+            if not bb:
+                return None
+            glyph = img.crop(bb)
+            ratio = h / glyph.height
+            glyph = glyph.resize((max(1, int(glyph.width * ratio)), h), Image.LANCZOS)
+            self._emoji_cache[key] = glyph
+            return glyph
+        except Exception:  # noqa: BLE001
+            return None
+
+    def _draw_line_mixed(self, draw, text: str, x: int, y: int, font, fill, line_h: int):
+        """按行绘制，把 emoji 用彩色字体渲染，其余用正文字体。"""
+        if self._emoji_font is None or not _EMOJI_RE.search(text):
+            draw.text((x, y), text, font=font, fill=fill)
+            return
+        cx = int(x)
+        buf: list[str] = []
+
+        def flush():
+            nonlocal cx
+            if buf:
+                s = "".join(buf)
+                draw.text((cx, y), s, font=font, fill=fill)
+                cx += int(draw.textlength(s, font=font))
+                buf.clear()
+
+        for ch in text:
+            if _EMOJI_RE.match(ch):
+                flush()
+                g = self._emoji_glyph(ch, line_h)
+                if g is not None:
+                    gy = y + max(0, (line_h - g.height) // 2)
+                    if g.mode == "RGBA":
+                        draw._image.paste(g, (cx, gy), g)
+                    else:
+                        draw._image.paste(g, (cx, gy))
+                    cx += g.width + 2
+                else:
+                    draw.text((cx, y), ch, font=font, fill=fill)
+                    cx += int(draw.textlength(ch, font=font))
+            else:
+                buf.append(ch)
+        flush()
+
     # ----------------------------------------------------------------
     async def render(self, post: Post, account: Account, out_dir: Path) -> str:
         await self._ensure_font()
@@ -187,8 +282,8 @@ class CardRenderer:
             media_imgs.append(img if img is not None else Image.new("RGB", (4, 4), rgb(theme.get("media_bg", "#F1F2F3"))))
 
         # ---- 测量版式 ----
-        # 在渲染层再清洗一次（emoji/空白），避免抓取层漏网导致 font 渲染出“豆腐块”
-        emoji_mode = str(self.render_cfg.get("emoji_mode", "strip"))
+        # Pillow 无法渲染彩色 emoji（emoji 字体只会得到白色剪影），此处一律移除，避免豆腐块/留白。
+        emoji_mode = "strip"
         content = sanitize_text(post.content, emoji_mode=emoji_mode)
         orig_content = sanitize_text(post.extra.get("orig_content") or "", emoji_mode=emoji_mode)
 
@@ -205,7 +300,7 @@ class CardRenderer:
         title_lh = 0
         title_h = 0
         if title:
-            title_font = self.fonts.font(int(24 * self._scale))
+            title_font = self.fonts.font(int(30 * self._scale))
             title_lines = wrap_text(measure, title, title_font, content_w)
             title_lh = title_font.getmetrics()[0] + title_font.getmetrics()[1] + 4
             title_h = len(title_lines) * title_lh
@@ -262,11 +357,11 @@ class CardRenderer:
         meta_text = f"{handle} · {post.created_at}" if post.created_at else handle
         draw.text((nx, meta_y), meta_text, font=meta_font, fill=sub_c)
 
-        # ---- 标题（如有） + 正文 ----
+        # ---- 标题（如有，更大更粗） + 正文 ----
         if title_lines:
             cy = body_y
             for ln in title_lines:
-                draw.text((PAD, cy), ln, font=title_font, fill=text_c)
+                self._draw_mixed_bold(draw, ln, PAD, cy, title_font, text_c, title_lh)
                 cy += title_lh
         if body_h:
             self._draw_wrapped(draw, content, body_font, text_c, PAD, content_y, content_w, body_lh)
@@ -311,8 +406,14 @@ class CardRenderer:
 
     def _draw_wrapped(self, draw, text, font, fill, x, y, max_width, line_h):
         for ln in wrap_text(draw, text, font, max_width):
-            draw.text((x, y), ln, font=font, fill=fill)
+            self._draw_line_mixed(draw, ln, x, y, font, fill, line_h)
             y += line_h
+
+    def _draw_mixed_bold(self, draw, text, x, y, font, fill, line_h):
+        """以轻微描边 + 偏移重绘，模拟加粗标题；同时支持 emoji。"""
+        self._draw_line_mixed(draw, text, x, y, font, fill, line_h)
+        self._draw_line_mixed(draw, text, x + 1, y, font, fill, line_h)
+        self._draw_line_mixed(draw, text, x, y + 1, font, fill, line_h)
 
     def _grid_layout(self, n: int) -> dict:
         if n <= 0:
