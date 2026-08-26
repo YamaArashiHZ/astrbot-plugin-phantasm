@@ -103,7 +103,8 @@ class HttpClient:
             async with httpx.AsyncClient(
                     proxy=self._proxy(),
                     timeout=httpx.Timeout(timeout or self._timeout()),
-                    follow_redirects=True) as client:
+                    follow_redirects=True,
+                    trust_env=False) as client:
                 resp = await client.get(url, headers=headers)
             resp.raise_for_status()
             return resp.content
@@ -127,7 +128,8 @@ class HttpClient:
                 async with httpx.AsyncClient(
                         proxy=self._proxy(),
                         timeout=httpx.Timeout(timeout),
-                        follow_redirects=True) as client:
+                        follow_redirects=True,
+                        trust_env=False) as client:
                     resp = await client.request(method, url, headers=headers,
                                                 params=params, json=json)
                 if resp.status_code == 429:
@@ -160,9 +162,12 @@ class HttpClient:
         if isinstance(err, FetchError):
             return str(err)
         if isinstance(err, httpx.ProxyError):
-            return "无法连接代理，请检查代理地址或关闭代理"
+            return ("无法连接代理。若 AstrBot 运行在 Docker，代理地址应填 host.docker.internal:端口"
+                    "（映射宿主机代理）而非 127.0.0.1；或关闭代理直连。")
         if isinstance(err, (httpx.ConnectTimeout, httpx.ReadTimeout, httpx.WriteTimeout)):
             return "请求超时，请检查网络与代理设置"
         if isinstance(err, httpx.ConnectError):
-            return "无法连接平台，请检查网络与代理设置"
+            return ("无法连接平台（DNS/网络不通）。若 AstrBot 运行在 Docker，请确认容器能访问外网；"
+                    "若需经宿主机代理，network.proxy 应填 host.docker.internal:端口，并设 proxy_enabled=true。"
+                    f"（{type(err).__name__}: {err}，{url}）")
         return f"网络请求失败：{err}（{url}）"

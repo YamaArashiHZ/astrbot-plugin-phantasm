@@ -111,7 +111,7 @@ data/plugin_data/astrbot_plugin_phantasm/config.json
 
   "credentials": {
     "bilibili": {
-      "cookie": "",                    // 完整 Cookie；至少含 buvid3/buvid4，建议含 SESSDATA
+      "cookie": "",                    // Cookie 值：至少含 buvid3/buvid4，建议含 SESSDATA
       "enable_risk_control_retry": true
     },
     "x": {
@@ -240,6 +240,18 @@ data/plugin_data/astrbot_plugin_phantasm/
   以 `aiocqhttp`（OneBot v11）为主，其它平台请先用 `/phantasm list` 确认目标能否命中运行中的平台。
 - **单进程约束**：轮询任务运行于插件所在 AstrBot 进程；多实例/重启后以当前配置为准。
 - **多图与长文本**：卡片高度随内容自适应，不会裁切正文；媒体最多 `media_max` 张。
+- **Cookie 写法**：`credentials.bilibili.cookie` 既可填**纯 Cookie 值**（`SESSDATA=…; buvid3=…`），
+  也可直接粘贴 **Cookie Editor 导出的整段请求头**（多行 `:authority: …` / `cookie: …`），插件会自动提取 `cookie:` 行。
+- **网络连接（ConnectError）**：连接失败通常是**容器/环境网络**问题，不是代码问题：
+  - 插件**默认不读取环境变量代理**（`trust_env=False`），只使用你在 `network` 里显式配置的代理，
+    避免容器里某个指向 `127.0.0.1` 的残留 `HTTP(S)_PROXY` 导致 `ConnectError`。
+  - 若 AstrBot 运行在 **Docker**：AstrBot 内部访问宿主机的代理，`network.proxy` 应填
+    `http://host.docker.internal:7897`（或宿主机局域网 IP），并设 `network.proxy_enabled=true`；
+    **不要**用 `127.0.0.1`（在容器里指容器自身，连不上宿主代理）。
+  - 若本机可直连 B 站 / X，保持 `proxy_enabled=false` 即可。
+  - 排查顺序：全局配置里的 `http_proxy`、容器的 `env | grep -i proxy`、`network.proxy` 三者是否一致可达。
+- **主动投递平台支持**：`context.send_message` 不支持所有平台（如 QQ 官方 API 平台不支持）。当前
+  以 `aiocqhttp`（OneBot v11）为主，其它平台请先用 `/phantasm list` 确认目标能否命中运行中的平台。
 
 ## 测试/验收
 

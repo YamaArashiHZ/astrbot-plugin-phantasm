@@ -16,6 +16,7 @@ fingerprint 接口获取并合并）；强烈建议在配置里提供登录后�
 from __future__ import annotations
 
 import json
+import re
 import time
 from typing import Any, Optional
 
@@ -31,6 +32,43 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
 
 # B 站风控/参数错误码
 _RISK_CODES = {-412, -352, -509}
+
+# 完整请求头里常见的 header 名前缀（用于识别「粘贴了 Cookie Editor 导出的整段 header」）
+_HEADER_LINE_RE = re.compile(
+    r"(?i)^(:authority|:method|:path|:scheme|accept|cookie|user-agent|"
+    r"content-type|origin|referer|sec-|priority|accept-language|"
+    r"accept-encoding|connection|content-length)\b")
+
+
+def _extract_cookie_value(raw: str) -> str:
+    """从 Cookie 配置值中提取真正的 ``Cookie:`` 内容。
+
+    兼容两种输入：
+      - 纯 Cookie 值：``SESSDATA=…; bili_jct=…; buvid3=…``
+      - Cookie Editor 导出的完整请求头（多行 ``key: value``），自动取 ``cookie:`` 行
+
+    其它无法识别的情况返回空串，交由上层提示。
+    """
+    if not raw:
+        return ""
+    s = raw.replace("\r\n", "\n").replace("\r", "\n").strip()
+    if not s:
+        return ""
+    first_lower = s.split("\n", 1)[0].strip().lower()
+
+    # 多行 header 或首行即以 header 名开头 → 视为完整请求头，找 cookie: 行
+    if "\n" in s or _HEADER_LINE_RE.match(s):
+        for line in s.split("\n"):
+            line = line.strip()
+            if line.lower().startswith("cookie:"):
+                return line.split(":", 1)[1].strip()
+        # 是 header 块但没 cookie: 行
+        if _HEADER_LINE_RE.match(first_lower) and not first_lower.startswith("cookie"):
+            return ""
+    # 单行：去掉可能的 cookie: 前缀
+    if first_lower.startswith("cookie:"):
+        return s.split(":", 1)[1].strip()
+    return s
 
 
 class BilibiliFetcher(BaseFetcher):
@@ -72,8 +110,13 @@ class BilibiliFetcher(BaseFetcher):
         return h
 
     async def _build_cookie(self) -> str:
-        """合并用户 Cookie 与自动获取的 buvid3/buvid4。"""
-        user_cookie = self.config.bilibili_cookie().strip()
+        """合并用户 Cookie 与自动获取的 buvid3/buvid4。
+
+        ``config.credentials.bilibili.cookie`` 既可以是纯 Cookie 值
+        （``SESSDATA=…; buvid3=…``），也可以是 Cookie Editor 导出的**完整请求头**：
+        此时会从中提取 ``cookie:`` 行的内容，忽略其它 header。
+        """
+        user_cookie = _extract_cookie_value(self.config.bilibili_cookie())
         # 若用户已自带 buvid，则不覆盖
         merged = {part: val.strip() for part, val in (kv.split("=", 1) for kv in user_cookie.split(";") if "=" in kv)}
 
