@@ -196,9 +196,7 @@ class CardRenderer:
         quote_h = (len(quote_lines) * quote_lh + 22) if quote_lines else 0
         stats_y = quote_y + quote_h + (12 if quote_h else 0)
         stat_h = 30
-        show_link = bool(post.url) and bool(self.send_cfg.get("link_to_post", True))
-        link_h = 20 if show_link else 0
-        total_h = stats_y + stat_h + FOOTER_EXTRA + link_h + PAD
+        total_h = stats_y + stat_h + FOOTER_EXTRA + PAD
 
         canvas = Image.new("RGB", (CARD_W, max(int(total_h), 240)), bg)
         draw = ImageDraw.Draw(canvas)
@@ -249,17 +247,6 @@ class CardRenderer:
         draw.line([(PAD, rule_y), (CARD_W - PAD, rule_y)], fill=divider, width=1)
         wm_font = self.fonts.font(14)
         draw.text((PAD, stats_y + stat_h), f"Phantasm · {label}", font=wm_font, fill=sub_c)
-        if show_link and post.url:
-            y_link = stats_y + stat_h + 20
-            lf = self.fonts.font(15)
-            link_text = f"原帖：{post.url}"
-            # 超宽则按字符截断，保证不超出右边界
-            max_w = CARD_W - 2 * PAD
-            if lf.getlength(link_text) > max_w:
-                while link_text and lf.getlength(link_text + "…") > max_w:
-                    link_text = link_text[:-1]
-                link_text += "…"
-            draw.text((PAD, y_link), link_text, font=lf, fill=rgb(theme.get("accent", "#1D9BF0")))
         return canvas
 
     # ----------------------------------------------------------------

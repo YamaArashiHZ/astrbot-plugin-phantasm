@@ -144,6 +144,17 @@ class Poller:
             self.logger.warning(f"[{account.key}] 抓取失败：{res.error}")
             return out
 
+        # 首次看到该账号（尚未基线化）：把当前抓到的历史动态全部标记为已处理，
+        # 本轮不投递，避免「新加账号时把历史全部刷屏」。
+        if not self.storage.is_baselined(account.key):
+            n = self.storage.mark_processed_many(p.kebab_id for p in res.posts)
+            self.storage.mark_baselined(account.key)
+            out.update({"baselined": True, "baselined_count": n,
+                        "new": 0, "sent": 0, "failed": 0, "errored": 0})
+            self.logger.info(
+                f"[{account.key}] 已完成历史基线化（标记 {n} 条历史为已处理），之后仅投递新帖")
+            return out
+
         # 新帖 = 尚未处理
         new_posts = [p for p in res.posts if not self.storage.is_processed(p.kebab_id)]
         out["new"] = len(new_posts)
@@ -206,13 +217,15 @@ class Poller:
 
     def _aggregate(self, results: list) -> dict[str, Any]:
         agg = {"accounts": len(results), "fetched": 0, "new": 0, "sent": 0,
-               "failed": 0, "errored": 0, "errors": []}
+               "failed": 0, "errored": 0, "baselined": 0, "errors": []}
         for r in results:
             agg["fetched"] += int(r.get("fetched", 0))
             agg["new"] += int(r.get("new", 0))
             agg["sent"] += int(r.get("sent", 0))
             agg["failed"] += int(r.get("failed", 0))
             agg["errored"] += int(r.get("errored", 0))
+            if r.get("baselined"):
+                agg["baselined"] += int(r.get("baselined_count", 0))
             if r.get("error"):
                 agg["errors"].append(f"{r.get('account')}: {r.get('error')}")
         return agg
@@ -221,9 +234,12 @@ class Poller:
     def _fmt_summary(s: dict) -> str:
         if s.get("skipped"):
             return f"跳过：{s['skipped']}"
-        return (f"账号 {s.get('accounts', 0)} | 抓到 {s.get('fetched', 0)} | "
+        base = (f"账号 {s.get('accounts', 0)} | 抓到 {s.get('fetched', 0)} | "
                 f"新帖 {s.get('new', 0)} | 投递成功 {s.get('sent', 0)} | "
                 f"失败 {s.get('failed', 0)} | 异常 {s.get('errored', 0)}")
+        if s.get("baselined"):
+            base += f" | 历史基线化 {s.get('baselined')}"
+        return base
 
     # ----------------------------------------------------------------
     # 状态查询

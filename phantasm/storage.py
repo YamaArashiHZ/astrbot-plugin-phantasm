@@ -22,6 +22,7 @@ class StorageManager:
         self._lock = threading.Lock()
         self._seen: deque[str] = deque()
         self._set: set[str] = set()
+        self._baselined: set[str] = set()
         self._load()
 
     def _load(self) -> None:
@@ -35,10 +36,14 @@ class StorageManager:
                         if k and k not in self._set:
                             self._set.add(k)
                             self._seen.append(k)
+                if isinstance(data, dict):
+                    for k in data.get("baselined", []) or []:
+                        self._baselined.add(str(k))
         except Exception as e:  # noqa: BLE001
             self.logger.warning(f"去重记录读取失败，已重置：{e}")
             self._set.clear()
             self._seen.clear()
+            self._baselined.clear()
         self._prune(do_write=False)
 
     def _prune(self, do_write: bool = True) -> None:
@@ -53,7 +58,10 @@ class StorageManager:
             self.data_dir.mkdir(parents=True, exist_ok=True)
             tmp = self.path.with_suffix(".tmp")
             tmp.write_text(
-                json.dumps({"processed": list(self._seen)}, ensure_ascii=False),
+                json.dumps({
+                    "processed": list(self._seen),
+                    "baselined": sorted(self._baselined),
+                }, ensure_ascii=False),
                 encoding="utf-8",
             )
             tmp.replace(self.path)
@@ -62,6 +70,14 @@ class StorageManager:
 
     def is_processed(self, key: str) -> bool:
         return key in self._set
+
+    def is_baselined(self, account_key: str) -> bool:
+        return account_key in self._baselined
+
+    def mark_baselined(self, account_key: str) -> None:
+        with self._lock:
+            self._baselined.add(account_key)
+            self._write()
 
     def mark_processed(self, key: str) -> None:
         if key in self._set:

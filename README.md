@@ -38,11 +38,10 @@ Phantasm 是一款面向 **AstrBot** 的发帖监听插件：它会定时检查�
 
 > 说明：本插件为了「开箱即用 + 美观通用」默认使用 Pillow 直接绘制卡片，因此需要额外安装
 > `Pillow`。关于**中文字体**：
-> - 若容器（Linux/Docker）里**没有任何中文字体**，插件会在首次渲染前**自动下载一份
->   **Noto Sans CJK SC**（OFL 许可，约 16MB）到插件数据目录 `fonts/`，中文即可正常显示。
-> - 若不想/不能联网下载，可：把 `.ttf/.otf` 放进插件 **data 目录的 `fonts/`**（如
->   `data/plugin_data/astrbot_plugin_phantasm/fonts/`），或设 `render.font_path` 指向该字体
->   （Windows 可用 `C:/Windows/Fonts/msyh.ttc`，Linux 用 `NotoSansCJK-Regular.otf`）。
+> - 插件**内置了一份 Noto Sans CJK SC 子集字体**（约 3.5MB，覆盖常用汉字 + 中英文标点，
+>   OFL 许可），随插件分发在 `phantasm/fonts/`，因此**无需手动配置字体**，中文开箱即显示。
+> - 若想换字体，可在配置里设 `render.font_path` 指向自备的 .ttf/.otf/.ttc；若删掉内置字体，
+>   插件会在首次渲染前尝试自动下载完整版 Noto Sans CJK 备用。
 
 ## 安装
 
@@ -103,7 +102,7 @@ data/plugin_data/astrbot_plugin_phantasm/config.json
   "send": {
     "caption_format": "{platform} · {author} · {time}", // 卡片附带的文字说明模板
     "send_caption": true,              // 是否附带文字说明
-    "link_to_post": true,              // 在说明末尾附上原贴链接（QQ 内可点击）；卡片底部也会显示原帖
+    "link_to_post": true,              // 在「文字说明」末尾附上原贴链接（QQ 内可点击）；卡片图片内不再显示链接
     "media_max": 4,                    // 单帖最多渲染图片数
     "max_jobs_per_account": 10,        // 每账号每轮最多投递新帖数
     "send_text_when_no_media": true
@@ -228,6 +227,10 @@ UMO ：<platform>:<MessageType>:<target_id>（直接指定）
 每次抓取后，`Poller` 会把「尚未处理」的新帖（按 `kebab_id = <platform>_<post_id>` 判断）逐条渲染并
 投递；**至少有一个目标成功投递后**才写入 `processed.json`，因此同一帖不会重复投递。若某帖连续 3 轮
 全部目标投递失败，为避免无限重试，也会标记并记录告警。历史有界（`storage.history_limit`）。
+
+> **添加账号不刷屏**：当某个监听账号第一次被轮询到（尚未基线化）时，插件会先把当前抓到的
+> **历史动态全部标记为已处理**（基线化），本轮不投递；之后只投递**新增**的帖子。这样新加账号
+> 不会把历史所有动态一次性刷到群里。基线化记录同样持久化在 `processed.json` 的 `baselined` 字段。
 
 ## 数据目录
 
