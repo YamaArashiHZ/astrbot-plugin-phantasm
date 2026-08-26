@@ -116,5 +116,6 @@ class StorageManager:
             n = len(self._set)
             self._set.clear()
             self._seen.clear()
+            self._baselined.clear()  # 一并清掉基线，避免清空后重新刷历史
             self._write()
         return n

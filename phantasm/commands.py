@@ -23,6 +23,7 @@ import re
 
 from astrbot.api.event import AstrMessageEvent
 
+from . import __version__
 from .models import Account
 
 _COMMANDS = {"phantasm", "phan"}
@@ -83,7 +84,7 @@ class CommandsMixin:
         st = self.storage
         acc = self.config.accounts()
         enabled = sum(1 for a in acc if a.enabled)
-        return (f"👻 Phantasm 状态\n"
+        return (f"👻 Phantasm v{__version__} 状态\n"
                 f"插件启用：{'✅' if self.config.enabled else '⛔'}  |  "
                 f"账号 {len(acc)}（启用 {enabled}）\n"
                 f"轮询：{poller_txt}\n"

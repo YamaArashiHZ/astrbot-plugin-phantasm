@@ -20,6 +20,7 @@ from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 # （如 data.plugins.astrbot_plugin_phantasm.phantasm.commands），
 # 这样 AstrBot 才能把 @filter.command 注册的命令关联到本插件。
 from .phantasm.commands import CommandsMixin
+from .phantasm import __version__ as _phantasm_version
 from .phantasm.config import ConfigManager
 from .phantasm.http import HttpClient
 from .phantasm.poller import Poller
@@ -86,6 +87,7 @@ class PhantasmPlugin(CommandsMixin, WebMixin, Star):
     async def initialize(self) -> None:
         """插件被加载后调用：按最新配置重建网络/渲染参数并（如启用）启动轮询。"""
         self.http.configure(self.config.network)
+        logger.info(f"Phantasm v{_phantasm_version} 已初始化")
         # 确保中文字体可用（缺省时自动下载 Noto Sans CJK，避免渲染出方框）
         await self.renderer.ensure_font(
             self.data_dir, lambda url: self.http.get_bytes(url, timeout=180))
