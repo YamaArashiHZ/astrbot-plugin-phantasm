@@ -94,11 +94,31 @@ class WebMixin:
                         x.pop(k, None)
         # 在合并前补齐凭据：掩码/空 用当前真实值填充
         self._preserve_credentials(safe)
+        # 账号代称：若 payload 某账号缺 display_name，用当前配置补齐（避免保存后变回 id）
+        self._preserve_accounts(safe)
         # 再深合并（数组整体替换），保存
         merged = _deep_merge(copy.deepcopy(DEFAULT_CONFIG), safe)
         self.config.config = merged
         self.config.save()
         self.storage.prune_if_needed(self.config.storage.get("history_limit"))
+
+    def _preserve_accounts(self, safe: dict) -> None:
+        cur = self.config.accounts()
+        cur_by_key = {a.key: a for a in cur}
+        accs = safe.get("accounts")
+        if not isinstance(accs, list):
+            return
+        for a in accs:
+            if not isinstance(a, dict):
+                continue
+            # 清理旧字段名 name（若存在且无 display_name）
+            if "name" in a:
+                a.setdefault("display_name", a["name"])
+                a.pop("name", None)
+            if "display_name" not in a:
+                c = cur_by_key.get(f"{a.get('platform','')}:{a.get('account_id','')}")
+                if c is not None:
+                    a["display_name"] = c.display_name or ""
 
     def _preserve_credentials(self, safe: dict) -> None:
         # 对于 payload 中缺失/为空的凭据，用当前配置中的真实值补齐
@@ -121,6 +141,11 @@ class WebMixin:
         self.renderer.image_cfg = self.config.image
         self.renderer.send_cfg = self.config.send
         self.sender.send_cfg = self.config.send
+        # HTML 渲染器是独立对象，需同步更新它引用的配置（否则主题/黑白不生效）
+        html = getattr(self.renderer, "_html_renderer", None)
+        if html is not None:
+            html.render_cfg = self.config.render
+            html.send_cfg = self.config.send
 
     def _status_payload(self) -> dict[str, Any]:
         accs = self.config.accounts()

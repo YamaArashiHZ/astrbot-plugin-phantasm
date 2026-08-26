@@ -55,7 +55,7 @@ function fillForm(cfg) {
   $("x_rss_base").value = cfg.credentials?.x?.rss_base ?? "https://rsshub.app";
 
   accounts = (cfg.accounts || []).map((a) => ({
-    platform: a.platform, account_id: a.account_id, name: a.display_name || "",
+    platform: a.platform, account_id: a.account_id, display_name: a.display_name || "",
     enabled: a.enabled !== false, targets: (a.targets || []).map((t) => ({ type: t.type, id: t.id })),
   }));
   renderAccounts();
@@ -109,10 +109,15 @@ function renderAccounts() {
       const card = `
         <div class="account-card">
           <div class="ac-head">
-            <span class="ac-title">${esc(a.name || a.account_id)}</span>
+            <span class="ac-title">${esc(a.display_name || a.account_id)}</span>
             <span class="ac-badge">${esc(a.platform)}</span>
           </div>
           <div class="ac-targets">ID：${esc(a.account_id)}<br>投递：${esc(targetsText(a))}</div>
+          <div class="ac-name-edit" style="display:flex;gap:6px;margin-top:6px">
+            <input id="ac_dn_${i}" value="${esc(a.display_name || '')}" placeholder="代称"
+              style="flex:1;padding:6px;border:1px solid var(--border);border-radius:8px"/>
+            <button class="btn ghost small" data-act="setname" data-i="${i}">设代称</button>
+          </div>
           <div class="ac-actions">
             <button class="btn ghost small" data-act="toggle" data-i="${i}">${a.enabled ? "停用" : "启用"}</button>
             <button class="btn ghost small" data-act="target" data-i="${i}">加目标</button>
@@ -145,6 +150,10 @@ function renderAccounts() {
       } else if (act === "toggle") {
         accounts[i].enabled = !accounts[i].enabled;
         toast(accounts[i].enabled ? "已启用该账号" : "已停用该账号");
+      } else if (act === "setname") {
+        const inp = box.querySelector(`#ac_dn_${i}`);
+        accounts[i].display_name = (inp && inp.value || "").trim();
+        toast("已设代称，记得点保存生效");
       } else if (act === "target") {
         addingTarget = addingTarget === i ? -1 : i;
       }
@@ -183,7 +192,7 @@ function addAccount() {
   const account_id = $("new_account_id").value.trim();
   const display_name = $("new_display_name").value.trim();
   if (!account_id) { toast("请填写 account_id"); return; }
-  accounts.push({ platform, account_id, name: display_name, enabled: true, targets: [] });
+  accounts.push({ platform, account_id, display_name, enabled: true, targets: [] });
   toast(`已添加 ${platform}:${account_id}（点「保存配置」生效）`);
   renderAccounts();
 }
