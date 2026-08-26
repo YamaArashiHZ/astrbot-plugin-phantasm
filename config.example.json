@@ -11,7 +11,7 @@
     "corner_radius": 24
   },
   "render": {
-    "backend": "pillow",
+    "backend": "html",
     "font_path": "",
     "font_size_scale": 1.0,
     "emoji_mode": "strip",

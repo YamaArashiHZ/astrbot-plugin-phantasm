@@ -16,7 +16,7 @@ Phantasm 是一款面向 **AstrBot** 的发帖监听插件：它会定时检查�
 | 账号监听 | 可配置轮询间隔（含随机抖动），后台异步任务定时抓取 |
 | Bilibili | REST API（用户动态接口 `feed/space`），需 Cookie |
 | X/Twitter | 官方 API v2（`/2/users/…/tweets`），需 Bearer Token |
-| 卡片渲染 | Pillow 直接绘制，B 站粉 / X 黑白主题、圆角、媒体网格自适配、统计条、平台水印 |
+| 卡片渲染 | **html（Playwright/Chromium，推荐，彩色 emoji）** 或 Pillow 兜底；B 站粉 / X 黑白主题、圆角、媒体网格、统计条 |
 | 去重 | `processed.json` 持久化已处理帖子 ID，有界历史，杜绝重复投递 |
 | 独立目标 | 每个账号可配置一个或多个 `group` / `private` 目标 |
 | 管理命令 | `/phantasm` 状态 / 立即检查 / 订阅列表 / 增删账号与目标 / 暂停恢复 |
@@ -36,12 +36,16 @@ Phantasm 是一款面向 **AstrBot** 的发帖监听插件：它会定时检查�
 - Bilibili：需要一个可用的 Cookie（至少 `buvid3`/`buvid4`；**建议含登录态 `SESSDATA`** 以降低风控）
 - X/Twitter：一个官方 API v2 的 **Bearer Token**（App-only token 即可读取公开推文）
 
-> 说明：本插件为了「开箱即用 + 美观通用」默认使用 Pillow 直接绘制卡片，因此需要额外安装
-> `Pillow`。关于**中文字体**：
-> - 插件**内置了一份 Noto Sans CJK SC 子集字体**（约 3.5MB，覆盖常用汉字 + 中英文标点，
->   OFL 许可），随插件分发在 `phantasm/fonts/`，因此**无需手动配置字体**，中文开箱即显示。
-> - 若想换字体，可在配置里设 `render.font_path` 指向自备的 .ttf/.otf/.ttc；若删掉内置字体，
->   插件会在首次渲染前尝试自动下载完整版 Noto Sans CJK 备用。
+> 说明：默认用 **HTML→图片（`render.backend=html`，Playwright + Chromium）** 渲染卡片，
+> 能原生输出**彩色 emoji**，布局也更精细。若容器未装 Playwright/Chromium，插件会**自动回退到
+> Pillow**（此时 emoji 被移除）。关于字体：
+> - CN 插件**内置 Noto Sans CJK SC 子集**（约 3.5MB，OFL），中文开箱即显示；
+> - HTML 后端通过 `@font-face` 引入内置中文字体 + 下载的 Noto Color Emoji（彩色 emoji）；
+> - 手动安装 HTML 后端依赖（Docker 容器内）：
+>   ```bash
+>   pip install playwright && playwright install --with-deps chromium
+>   ```
+>   （若网络受限，可用镜像源或先 `playwright install chromium` 再补系统字体。）
 
 ## 安装
 
@@ -86,10 +90,10 @@ data/plugin_data/astrbot_plugin_phantasm/config.json
   },
 
   "render": {
-    "backend": "pillow",               // 目前仅 pillow；预留 html(需 playwright)
+    "backend": "html",                 // html=Playwright/Chromium(彩色emoji,推荐) / pillow=Pillow
     "font_path": "",                   // 中文字体路径，空则自动探测
     "font_size_scale": 1.0,            // 整体字号缩放
-    "emoji_mode": "strip",             // strip=移除 emoji / keep=保留
+    "emoji_mode": "keep",              // keep=保留(html后端原生渲染彩色emoji) / strip=移除
     "name_color": "#000000",
     "handle_color": "#536471",
     "verified_badge": true,            // X 蓝V徽标
@@ -197,17 +201,19 @@ data/plugin_data/astrbot_plugin_phantasm/config.json
 - **X**：官方 API v2 严格按项目/用户配额限流（如 read 项目通常 500 req/15min 量级）。请保守设置
   `poll_interval_seconds`，超出配额会得到 429（插件按限流处理，不崩溃）。
 
-### 卡片渲染（Pillow）
+### 卡片渲染（HTML / Pillow）
 
+默认用 **HTML（Playwright + Chromium）** 渲染，`render.backend` 可切 `html` / `pillow`。
 渲染器按 `post.platform` 选择主题色板与版式，固定宽度、高度随内容自适应：
 
-- **Bilibili 卡片**：粉色平台标识条、圆形头像、昵称 + UID、动态时间、正文、
-  媒体网格（视频封面/图文/单图按宽高比裁切）、统计条（播放/点赞/评论/转发）、平台水印。
+- **Bilibili 卡片**：粉色平台标识条、圆形头像、昵称 + UID、动态时间、标题、正文、
+  媒体网格、统计条（播放/点赞/评论/转发）、平台水印。
 - **X 卡片**：黑白主题、头像 + 名称 + 蓝V徽标 + `@handle` + 时间、正文、媒体网格、
   统计条（回复/转发/喜欢/引用）、平台水印。
 
-长文本按字符自动换行，多图（1/2/3/4 张）自适应网格，中英文正常渲染；emoji 默认 `strip`
-移除（Pillow 无法原生渲染彩色 emoji，保留会显示为豆腐块）。卡片产出到 `data/plugin_data/…/cards/`。
+HTML 后端用 CSS 排版，**彩色 emoji 原生渲染**；若容器未装 Playwright/Chromium（系统依赖未装），
+插件自动回退到 Pillow（此时 emoji 移除）。长文本自适应，多图网格，中英文正常。卡片输出到
+`data/plugin_data/…/cards/`。
 
 ### 投递（AstrBot 主动消息）
 

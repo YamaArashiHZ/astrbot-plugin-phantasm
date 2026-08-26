@@ -32,7 +32,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "corner_radius": 24,
     },
     "render": {
-        "backend": "pillow",
+        "backend": "html",               # html: Playwright/Chromium(彩色emoji) / pillow: Pillow
         "font_path": "",
         "font_size_scale": 1.0,
         "emoji_mode": "strip",           # strip: 移除 emoji（Pillow 无法渲染彩色 emoji）/ keep: 保留（需 HTML 后端）

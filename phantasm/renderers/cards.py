@@ -62,6 +62,8 @@ class CardRenderer:
             self._scale = 1.0
         self._radius = min(28, max(0, int(self.image_cfg.get("corner_radius", 24) or 0)))
         self._fmt = str(self.image_cfg.get("format", "png")).lower()
+        self._html_renderer = None
+        self._html_ok = None   # None=未测, True=HTML可用, False=已禁用(回退Pillow)
 
     def set_downloader(self, fn) -> None:
         """注入 ``async (url) -> bytes`` 下载器。"""
@@ -239,6 +241,14 @@ class CardRenderer:
 
     # ----------------------------------------------------------------
     async def render(self, post: Post, account: Account, out_dir: Path) -> str:
+        # HTML（Playwright/Chromium）后端：彩色 emoji 原生渲染；不可用则回退 Pillow
+        if self._html_ok is not False and \
+                str(self.render_cfg.get("backend", "html")).lower() == "html":
+            try:
+                return await self._render_html(post, account, out_dir)
+            except Exception as e:  # noqa: BLE001
+                self._html_ok = False
+                self.logger.warning(f"HTML 渲染失败（{e}），已回退 Pillow 渲染")
         await self._ensure_font()
         theme = resolve_theme(post.platform, self.render_cfg.get("theme") or {})
         canvas = await self._paint(post, account, theme)
@@ -252,6 +262,16 @@ class CardRenderer:
         else:
             canvas.save(path)
         return str(path)
+
+    async def _render_html(self, post: Post, account: Account, out_dir: Path) -> str:
+        from .html_renderer import HtmlCardRenderer
+        if self._html_renderer is None:
+            self._html_renderer = HtmlCardRenderer(self.config, self.logger,
+                                                   self._store_dir or Path(out_dir).resolve().parent)
+            await self._html_renderer.ensure_fonts(self._downloader)
+        path = await self._html_renderer.render(post, account, out_dir)
+        self._html_ok = True
+        return path
 
     # ----------------------------------------------------------------
     async def _paint(self, post: Post, account: Account, theme) -> Image.Image:
