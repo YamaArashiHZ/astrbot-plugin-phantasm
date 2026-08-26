@@ -209,7 +209,14 @@ class BilibiliFetcher(BaseFetcher):
             author_name = author_mod.get("name") or self.account.account_id
             avatar = self._find_url(author_mod.get("avatar"))
             pub_text = author_mod.get("pub_time_text") or author_mod.get("pub_time") or ""
-            ts = parse_time_to_ts(str(author_mod.get("pub_time") or pub_text or ""))
+            # 优先用 item 顶层的 pub_ts（unix 秒）；否则解析 pub_time 相对文本
+            pub_ts = item.get("pub_ts") or ""
+            try:
+                ts = float(pub_ts) if str(pub_ts).isdigit() else 0.0
+            except (TypeError, ValueError):
+                ts = 0.0
+            if not ts:
+                ts = parse_time_to_ts(str(author_mod.get("pub_time") or pub_text or ""))
 
             stats = self._extract_stats(stat_mod)
             stats.update({k: v for k, v in card_stats.items() if v})

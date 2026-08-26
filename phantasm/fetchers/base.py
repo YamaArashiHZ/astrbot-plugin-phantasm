@@ -68,6 +68,28 @@ def parse_time_to_ts(value: str, fallback: float = 0.0, tz_utc8: bool = True) ->
             return dt.timestamp()
         except ValueError:
             return fallback
+    # 相对时间：刚刚 / N分钟前 / N小时前 / N天前 / 昨天 / 前天
+    now = time.time()
+    if v in ("刚刚", "刚刚发布", "此刻"):
+        return now
+    m = re.match(r"^(\d+)\s*秒前$", v)
+    if m:
+        return now - int(m.group(1))
+    m = re.match(r"^(\d+)\s*分钟前$", v)
+    if m:
+        return now - int(m.group(1)) * 60
+    m = re.match(r"^(\d+)\s*小时前$", v)
+    if m:
+        return now - int(m.group(1)) * 3600
+    m = re.match(r"^(\d+)\s*天前$", v)
+    if m:
+        return now - int(m.group(1)) * 86400
+    if v.startswith("昨天"):
+        base = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        return (base - timedelta(days=1)).timestamp()
+    if v.startswith("前天"):
+        base = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        return (base - timedelta(days=2)).timestamp()
     return fallback
 
 
