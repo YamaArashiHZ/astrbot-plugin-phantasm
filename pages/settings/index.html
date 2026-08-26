@@ -86,6 +86,14 @@
         <section class="card">
           <div class="card-head"><h2>渲染</h2></div>
           <div class="card-body">
+            <label class="field">
+              <span class="label">渲染后端</span>
+              <select id="render_backend">
+                <option value="html">html（Playwright/Chromium，彩色 emoji，推荐）</option>
+                <option value="pillow">pillow（Pillow，无彩色 emoji）</option>
+              </select>
+              <span class="hint">html 需容器已执行 playwright install --with-deps chromium；未装会自动回退 Pillow</span>
+            </label>
             <div class="grid-2">
               <label class="field">
                 <span class="label">媒体宽高比</span>
