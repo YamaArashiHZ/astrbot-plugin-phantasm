@@ -66,20 +66,37 @@ class CardRenderer:
         self._font_ensured = True
         if store_dir:
             self._store_dir = Path(store_dir)
-        if self.fonts.resolve():
-            return  # 已能找到字体（render.font_path / 系统路径）
 
-        # 1) 插件包内置字体目录 phantasm/fonts/
+        # 0) 显式 render.font_path（用户指定，即使是非中文字体也尊重）
+        fp = str(self.render_cfg.get("font_path", "")).strip()
+        if fp and Path(fp).is_file():
+            self.fonts = FontResolver(override=fp, logger=self.logger)
+            self.logger.info(f"使用配置字体：{fp}")
+            return
+
+        # 1) 系统里已有真正的中文字体（Noto/雅黑等，比内置子集更完整）→ 优先
+        sys_path = self.fonts.resolve()
+        if sys_path and self._looks_cjk(sys_path):
+            self.logger.info(f"使用系统中文字体：{sys_path}")
+            return
+
+        # 2) 内置 phantasm/fonts/（CJK 子集）→ 其次是 data 目录 fonts/
         pkg_fonts = Path(__file__).resolve().parent.parent / "fonts"
         found = self._first_font(pkg_fonts)
-        # 2) 插件 data 目录的 fonts/（用户可自行放字体）
         if not found and self._store_dir:
             found = self._first_font(self._store_dir / "fonts")
         if found:
             self.fonts = FontResolver(override=str(found), logger=self.logger)
-            self.logger.info(f"已使用字体：{found}")
+            self.logger.info(f"使用字体：{found}")
             return
 
+        # 3) 只找到非中文字体：仍用它（避免空白），但告警
+        if self.fonts.resolve():
+            self.logger.warning("仅找到非中文字体，中文可能显示为方框；"
+                                "建议设置 render.font_path 或放入内置字体目录")
+            return
+
+        # 4) 下载兜底
         dl = downloader or self._downloader
         if not dl or not self._store_dir:
             self.logger.warning("未找到中文字体且无可用下载器，中文可能显示为方框；"
@@ -98,6 +115,14 @@ class CardRenderer:
         except Exception as e:  # noqa: BLE001
             self.logger.warning(f"中文字体下载失败，中文可能显示为方框：{e}。"
                                 f"请手动放置字体到 {fonts_dir} 或设置 render.font_path")
+
+    @staticmethod
+    def _looks_cjk(path) -> bool:
+        p = str(path).lower()
+        return any(k in p for k in (
+            "cjk", "noto", "msyh", "simhei", "simsun", "pingfang", "wqy", "yahei",
+            "han", "source han", "droidsansfallback", "deng",
+        ))
 
     @staticmethod
     def _first_font(folder: Path) -> Optional[Path]:
