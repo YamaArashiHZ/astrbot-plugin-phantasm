@@ -87,9 +87,10 @@ class CommandsMixin:
         st = self.storage
         acc = self.config.accounts()
         enabled = sum(1 for a in acc if a.enabled)
+        render_backend = self.config.render.get("backend", "html")
         return (f"👻 Phantasm v{__version__} 状态\n"
                 f"插件启用：{'✅' if self.config.enabled else '⛔'}  |  "
-                f"账号 {len(acc)}（启用 {enabled}）\n"
+                f"账号 {len(acc)}（启用 {enabled}） | 渲染 {render_backend}\n"
                 f"轮询：{poller_txt}\n"
                 f"去重记录：{st.count} 条 | 平台：bilibili / x")
 
