@@ -93,12 +93,10 @@ class XRssFetcher(BaseFetcher):
         desc = text("description")
         pub = text("pubDate")
         link = text("link")
+        author = text("author") or screen   # RSSHub 的 <author> 是显示名(如"雫丶Shizuku✨DUCEXY")
 
-        # 正文：优先 title(RSSHub 通常即推文文本)，其次 description 去 HTML
-        content = sanitize_text(title, emoji_mode="keep") or ""
-        if not content:
-            desc_text = _TAG_RE.sub("", desc)
-            content = sanitize_text(desc_text, emoji_mode="keep")
+        # 正文：description 用 <br> 保留换行；title 是压平文本。优先 description 还原换行。
+        content = self._desc_to_content(desc, title)
 
         # 媒体图：从 description 里抽 img src + 视频海报(RSSHub 会用 <video poster=...>)
         media_urls: list[str] = []
@@ -122,9 +120,9 @@ class XRssFetcher(BaseFetcher):
         return Post(
             platform="x",
             account_id=screen,
-            account_name=screen,
+            account_name=author,
             post_id=post_id,
-            author_name=screen,
+            author_name=author,
             author_handle=f"@{screen}",
             author_avatar_url=channel_avatar,
             content=content,
@@ -136,6 +134,22 @@ class XRssFetcher(BaseFetcher):
             source_type="rss",
             extra={"rss": True, "link": link, "stats_unavailable": True},
         )
+
+    @staticmethod
+    def _desc_to_content(desc: str, title_fallback: str) -> str:
+        """把 RSS description(HTML) 转成保留换行的正文；标签剥除、实体解码。"""
+        import html as _h
+        if desc:
+            s = re.sub(r"<br\s*/?>", "\n", desc, flags=re.IGNORECASE)
+            s = re.sub(r"</(p|div|li|blockquote)>", "\n", s, flags=re.IGNORECASE)
+            s = _TAG_RE.sub("", s)
+            s = _h.unescape(s)
+            s = re.sub(r"[ \t]+", " ", s)
+            s = re.sub(r"\n\s*\n+", "\n", s)          # 折叠连续空行
+            s = s.strip("\n").strip()
+            if s:
+                return sanitize_text(s, emoji_mode="keep")
+        return sanitize_text(title_fallback, emoji_mode="keep")
 
     @staticmethod
     def _parse_pub(pub: str) -> float:

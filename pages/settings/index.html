@@ -78,8 +78,21 @@
             </label>
             <label class="field">
               <span class="label">X Bearer Token</span>
-              <input type="password" id="x_bearer" autocomplete="off" placeholder="官方 API v2 Bearer Token" />
+              <input type="password" id="x_bearer" autocomplete="off" placeholder="官方 API v2 Bearer Token（mode=api 需要）" />
             </label>
+            <div class="grid-2">
+              <label class="field">
+                <span class="label">X 接入方式</span>
+                <select id="x_mode">
+                  <option value="api">api（官方 API，需额度）</option>
+                  <option value="rss">rss（RSSHub 第三方，免费不占额度）</option>
+                </select>
+              </label>
+              <label class="field">
+                <span class="label">X RSSHub 地址（mode=rss）</span>
+                <input type="text" id="x_rss_base" placeholder="http://host.docker.internal:1200" />
+              </label>
+            </div>
           </div>
         </section>
 

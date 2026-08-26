@@ -48,6 +48,8 @@ function fillForm(cfg) {
 
   $("bili_cookie").value = cfg.credentials?.bilibili?.cookie ?? "";
   $("x_bearer").value = cfg.credentials?.x?.bearer_token ?? "";
+  $("x_mode").value = cfg.credentials?.x?.mode ?? "api";
+  $("x_rss_base").value = cfg.credentials?.x?.rss_base ?? "https://rsshub.app";
 
   accounts = (cfg.accounts || []).map((a) => ({
     platform: a.platform, account_id: a.account_id, name: a.display_name || "",
@@ -74,7 +76,10 @@ function collect() {
       proxy: strVal("proxy"), proxy_enabled: boolVal("proxy_enabled"),
       timeout_seconds: numVal("timeout_seconds", 15), max_concurrency: numVal("max_concurrency", 3),
     },
-    credentials: { bilibili: { cookie: strVal("bili_cookie") }, x: { bearer_token: strVal("x_bearer") } },
+    credentials: {
+      bilibili: { cookie: strVal("bili_cookie") },
+      x: { bearer_token: strVal("x_bearer"), mode: strVal("x_mode"), rss_base: strVal("x_rss_base") },
+    },
     accounts,
   };
 }
