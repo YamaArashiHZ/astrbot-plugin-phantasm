@@ -136,7 +136,7 @@ class CommandsMixin:
             yield event.plain_result("account_id 不能为空")
             return
 
-        yield event.plain_result("正在抓取原始数据并写入日志（搜 phan_raw）…")
+        yield event.plain_result("正在抓取原始数据…")
         from .fetchers import build_fetcher
         fetcher = build_fetcher(
             Account(platform=platform, account_id=account_id, display_name=""),
@@ -145,56 +145,46 @@ class CommandsMixin:
             yield event.plain_result("未知平台")
             return
 
-        # 1) 原始 JSON 写日志
+        # 1) 抓取 feed 原始 + 详情，保存到文件（避免刷屏日志）
+        raw: list = []
+        save_path = None
         try:
-            raw = await fetcher.fetch_raw(limit=limit)
-        except Exception as e:  # noqa: BLE001
-            raw = []
-            self.logger.warning(f"phan_raw 抓取原始失败：{e}")
-        if raw:
             import json as _json
-            self.logger.info(f"phan_raw 开始 [{platform}:{account_id}] 条数={len(raw)}")
-            for i, item in enumerate(raw):
-                self.logger.info(f"phan_raw #{i}: {_json.dumps(item, ensure_ascii=False)}")
-            self.logger.info("phan_raw 结束")
-            # 额外抓取【详情接口】原始响应并写日志（phan_detail），用于定位 feed 缺失的图文正文
-            latest_id = (raw[0].get("id_str") or "") if isinstance(raw[0], dict) else ""
-            if latest_id and hasattr(fetcher, "fetch_detail"):
-                try:
-                    detail = await fetcher.fetch_detail(latest_id)
-                    self.logger.info(
-                        f"phan_detail [{platform}:{account_id}] id={latest_id}: "
-                        f"{_json.dumps(detail, ensure_ascii=False)}")
-                except Exception as e:  # noqa: BLE001
-                    self.logger.warning(f"phan_detail 抓取失败 id={latest_id}：{e}")
-        else:
-            self.logger.info(f"phan_raw 未取到原始数据 [{platform}:{account_id}]")
+            raw = await fetcher.fetch_raw(limit=limit)
+            latest_id = str(raw[0].get("id_str") or "") if raw and isinstance(raw[0], dict) else ""
+            detail = await fetcher.fetch_detail(latest_id) if latest_id and hasattr(fetcher, "fetch_detail") else {}
+            raw_dir = self.data_dir / "raw"
+            raw_dir.mkdir(parents=True, exist_ok=True)
+            save_path = raw_dir / f"{latest_id or 'latest'}.json"
+            save_path.write_text(
+                _json.dumps({"feed": raw, "detail": detail}, ensure_ascii=False, indent=2),
+                encoding="utf-8")
+        except Exception as e:  # noqa: BLE001
+            self.logger.warning(f"phan_raw 抓取/保存失败：{e}")
+        self.logger.info(f"phan_raw 已保存 {platform}:{account_id} 最新 {len(raw)} 条 -> {save_path}")
 
-        # 2) 渲染最新一条卡片并发送（便于比对正文提取结果）
-        msg = f"已抓取 {platform}:{account_id} 原始 {len(raw)} 条，完整 JSON 已写入日志(搜 phan_raw)。"
+        save_msg = f"，原始 JSON 已存 {save_path}" if save_path else ""
+        # 2) 渲染最新一张卡片并发送
         try:
             res = await fetcher.fetch_recent(limit=max(1, limit))
             if res.error:
-                yield event.plain_result(msg + f"\n（解析/抓取提示：{res.error}）")
+                yield event.plain_result(f"已抓取原始 {len(raw)} 条{save_msg}\n（解析提示：{res.error}）")
                 return
             if not res.posts:
-                yield event.plain_result(msg + "\n（没有解析出帖子）")
+                yield event.plain_result(f"已抓取原始 {len(raw)} 条{save_msg}\n（未解析出帖子）")
                 return
             post = res.posts[0]
             preview = post.content[:40] if post.content else ""
-            try:
-                card = await self.renderer.render(
-                    post,
-                    Account(platform=platform, account_id=account_id, display_name=""),
-                    self.poller._render_dir())
-                yield event.image_result(card)
-                yield event.plain_result(
-                    msg + f"\n上方卡片为最新一条：正文{'已提取' if post.content else '为空（feed 无 desc，已尝试 OPUS 网页补充）'}"
-                    + (f"；正文={preview!r}" if preview else ""))
-            except Exception as e:  # noqa: BLE001
-                yield event.plain_result(msg + f"\n（渲染失败：{e}）")
+            card = await self.renderer.render(
+                post, Account(platform=platform, account_id=account_id, display_name=""),
+                self.poller._render_dir())
+            yield event.image_result(card)
+            yield event.plain_result(
+                f"已抓取原始 {len(raw)} 条{save_msg}。上方卡片为最新一条："
+                f"正文{'已提取' if post.content else '为空'}"
+                + (f"；正文={preview!r}" if preview else ""))
         except Exception as e:  # noqa: BLE001
-            yield event.plain_result(msg + f"\n（解析失败：{e}）")
+            yield event.plain_result(f"已抓取原始 {len(raw)} 条{save_msg}\n（渲染/解析失败：{e}）")
 
     def _cmd_add(self, rest) -> str:
         if len(rest) < 2:

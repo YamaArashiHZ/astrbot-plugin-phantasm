@@ -54,6 +54,7 @@ class HtmlCardRenderer:
         emoji_target = fonts_dir / "NotoColorEmoji.ttf"
         if not emoji_target.exists() and downloader:
             try:
+                fonts_dir.mkdir(parents=True, exist_ok=True)
                 self.logger.info("正在下载彩色 emoji 字体…")
                 data = await downloader(EMOJI_FONT_URL)
                 emoji_target.write_bytes(data)
