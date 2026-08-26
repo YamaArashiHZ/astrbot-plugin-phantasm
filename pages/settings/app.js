@@ -262,6 +262,50 @@ async function loadCards() {
   } catch (e) { $("cards-list").innerHTML = '<div class="empty">加载失败：' + esc(e) + "</div>"; }
 }
 
+// ---------- 平滑滚动（复刻 eidolon 页面的动效） ----------
+function initSmoothWheelScroll() {
+  const content = document.querySelector(".content");
+  if (!content) return;
+  let target = content.scrollTop;
+  let frame = 0;
+  const tick = () => {
+    const distance = target - content.scrollTop;
+    if (Math.abs(distance) < 0.5) {
+      content.scrollTop = target;
+      frame = 0;
+      return;
+    }
+    content.scrollTop += distance * 0.16;
+    frame = requestAnimationFrame(tick);
+  };
+  content.addEventListener("scroll", () => {
+    if (!frame) target = content.scrollTop;
+  }, { passive: true });
+  content.addEventListener("wheel", (e) => {
+    // 文本框/下拉内部滚动不拦截
+    if (e.ctrlKey || e.target.closest("select, input, textarea, .target-form")) return;
+    const max = content.scrollHeight - content.clientHeight;
+    if (max <= 0) return;
+    const delta = e.deltaMode === 1 ? e.deltaY * 32 : e.deltaMode === 2 ? e.deltaY * content.clientHeight : e.deltaY;
+    target = Math.max(0, Math.min(max, target + delta));
+    e.preventDefault();
+    if (!frame) frame = requestAnimationFrame(tick);
+  }, { passive: false });
+}
+
+function scrollContentToTop() {
+  const content = document.querySelector(".content");
+  if (!content) return;
+  let frame = 0;
+  const tick = () => {
+    const distance = 0 - content.scrollTop;
+    if (Math.abs(distance) < 0.5) { content.scrollTop = 0; frame = 0; return; }
+    content.scrollTop += distance * 0.16;
+    frame = requestAnimationFrame(tick);
+  };
+  frame = requestAnimationFrame(tick);
+}
+
 // ---------- 导航 ----------
 function setupNav() {
   document.querySelectorAll(".nav-item").forEach((btn) => {
@@ -272,6 +316,7 @@ function setupNav() {
       const view = document.getElementById("view-" + btn.dataset.view);
       if (view) view.classList.add("active");
       if (btn.dataset.view === "status") { loadStatus(); loadCards(); }
+      scrollContentToTop();
     });
   });
 }
@@ -279,6 +324,7 @@ function setupNav() {
 async function init() {
   const ctx = await bridge.ready();
   setupNav();
+  initSmoothWheelScroll();
   $("btn-save").addEventListener("click", saveConfig);
   $("btn-check").addEventListener("click", doCheck);
   $("btn-clear").addEventListener("click", doClear);

@@ -12,7 +12,7 @@ body { margin: 0; font: 14px/1.5 -apple-system, "Segoe UI", "Microsoft YaHei", s
 .nav-item { display:flex; align-items:center; gap:10px; background:none; border:none; color:var(--sidebar-text); padding:10px 12px; border-radius:10px; cursor:pointer; font-size:14px; text-align:left; }
 .nav-item.active { background: rgba(255,255,255,.12); color:#fff; }
 .nav-icon { width:18px; height:18px; }
-.content { margin-left:240px; padding: 28px 32px; }
+.content { margin-left:240px; padding: 28px 32px; height:100vh; overflow-y:auto; }
 .view { display:none; } .view.active { display:block; }
 .page-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; }
 .page-head h1 { margin:0; font-size:24px; } .page-head p { margin:4px 0 0; color:var(--muted); }
