@@ -140,22 +140,47 @@ class CommandsMixin:
         if fetcher is None:
             yield event.plain_result("未知平台")
             return
+
+        # 1) 原始 JSON 写日志
         try:
             raw = await fetcher.fetch_raw(limit=limit)
         except Exception as e:  # noqa: BLE001
-            yield event.plain_result(f"抓取失败：{e}")
-            return
-        if not raw:
-            yield event.plain_result(
-                f"未抓到 {platform}:{account_id} 的原始数据（检查凭据或 B 站风控）")
-            return
-        import json as _json
-        self.logger.info(f"phan_raw 开始 [{platform}:{account_id}] 条数={len(raw)}")
-        for i, item in enumerate(raw):
-            self.logger.info(f"phan_raw #{i}: {_json.dumps(item, ensure_ascii=False)}")
-        self.logger.info("phan_raw 结束")
-        yield event.plain_result(
-            f"已抓取 {platform}:{account_id} 原始 {len(raw)} 条，完整 JSON 已写入日志（搜 phan_raw）。")
+            raw = []
+            self.logger.warning(f"phan_raw 抓取原始失败：{e}")
+        if raw:
+            import json as _json
+            self.logger.info(f"phan_raw 开始 [{platform}:{account_id}] 条数={len(raw)}")
+            for i, item in enumerate(raw):
+                self.logger.info(f"phan_raw #{i}: {_json.dumps(item, ensure_ascii=False)}")
+            self.logger.info("phan_raw 结束")
+        else:
+            self.logger.info(f"phan_raw 未取到原始数据 [{platform}:{account_id}]")
+
+        # 2) 渲染最新一条卡片并发送（便于比对正文提取结果）
+        msg = f"已抓取 {platform}:{account_id} 原始 {len(raw)} 条，完整 JSON 已写入日志(搜 phan_raw)。"
+        try:
+            res = await fetcher.fetch_recent(limit=max(1, limit))
+            if res.error:
+                yield event.plain_result(msg + f"\n（解析/抓取提示：{res.error}）")
+                return
+            if not res.posts:
+                yield event.plain_result(msg + "\n（没有解析出帖子）")
+                return
+            post = res.posts[0]
+            preview = post.content[:40] if post.content else ""
+            try:
+                card = await self.renderer.render(
+                    post,
+                    Account(platform=platform, account_id=account_id, display_name=""),
+                    self.poller._render_dir())
+                yield event.image_result(card)
+                yield event.plain_result(
+                    msg + f"\n上方卡片为最新一条：正文{'已提取' if post.content else '为空（feed 可能无 desc，已尝试 detail 补充）'}"
+                    + (f"；正文={preview!r}" if preview else ""))
+            except Exception as e:  # noqa: BLE001
+                yield event.plain_result(msg + f"\n（渲染失败：{e}）")
+        except Exception as e:  # noqa: BLE001
+            yield event.plain_result(msg + f"\n（解析失败：{e}）")
 
     def _cmd_add(self, rest) -> str:
         if len(rest) < 2:

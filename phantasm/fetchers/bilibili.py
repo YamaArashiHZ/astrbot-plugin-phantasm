@@ -96,7 +96,36 @@ class BilibiliFetcher(BaseFetcher):
         items = (data.get("data") or {}).get("items") or []
         posts = [p for p in (self._parse_item(it, account_id) for it in items) if p is not None]
         posts.sort(key=lambda p: p.created_ts, reverse=True)
+        # B 站 feed 对部分图文动态不返回 desc（正文为空但有图），此时从 detail 接口补正文。
+        # 只补前 3 条，避免批量请求触发风控。
+        filled = 0
+        for p in posts:
+            if not p.content and p.media_urls and filled < 3:
+                try:
+                    d = await self._fetch_detail_desc(p.post_id)
+                    if d:
+                        p.content = d
+                        p.extra["content_from_detail"] = True
+                        filled += 1
+                except Exception:  # noqa: BLE001
+                    pass
         return FetchResult(posts=posts[:limit], total=len(posts))
+
+    async def _fetch_detail_desc(self, post_id: str) -> str:
+        """从动态详情接口取正文（feed 里 desc 为空的图文动态）。"""
+        cookie = await self._build_cookie()
+        if not cookie:
+            return ""
+        url = f"https://api.bilibili.com/x/polymer/web-dynamic/v1/detail?id={post_id}&timezone_offset=-480"
+        try:
+            data = await self.http.get_json(url, headers=self._headers(cookie))
+        except Exception:  # noqa: BLE001
+            return ""
+        if data.get("code") != 0:
+            return ""
+        item = (data.get("data") or {}).get("item") or {}
+        dyn = (item.get("modules") or {}).get("module_dynamic") or {}
+        return self._extract_content(dyn)
 
     async def fetch_raw(self, limit: int = 5) -> list:
         """返回最近动态的原始 item 字典列表（调试用，不解析）。"""

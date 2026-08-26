@@ -37,6 +37,7 @@ class PhantasmPlugin(CommandsMixin, WebMixin, Star):
         super().__init__(context)
         plugin_name = getattr(self, "name", PLUGIN_NAME)
         self.plugin_name = plugin_name
+        self.logger = logger
         self.data_dir = Path(get_astrbot_data_path()) / "plugin_data" / plugin_name
         self.data_dir.mkdir(parents=True, exist_ok=True)
 
