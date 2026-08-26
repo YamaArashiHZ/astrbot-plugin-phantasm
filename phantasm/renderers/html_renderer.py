@@ -145,7 +145,10 @@ class HtmlCardRenderer:
 
     # ----------------------------------------------------------------
     def _build_html(self, post: Post, account: Account) -> str:
-        theme = resolve_theme(post.platform, self.render_cfg.get("theme") or {})
+        mode_map = self.render_cfg.get("theme_mode") or {}
+        dark = str(mode_map.get(post.platform, "light")).lower() in ("dark", "true", "1")
+        theme = resolve_theme(post.platform, self.render_cfg.get("theme") or {},
+                              dark=dark, dark_cfg=self.render_cfg.get("dark_theme") or {})
         if post.platform == "x":
             body = self._x_body(post, account, theme)
         else:

@@ -66,6 +66,8 @@ class CommandsMixin:
             yield self._require_admin(event, lambda: self._cmd_del(rest))
         elif cmd in ("target", "目标"):
             yield self._require_admin(event, lambda: self._cmd_target(rest))
+        elif cmd in ("alias", "代称", "name"):
+            yield self._require_admin(event, lambda: self._cmd_alias(rest))
         elif cmd in ("pause", "暂停"):
             yield self._require_admin(event, lambda: self._cmd_pause())
         elif cmd in ("resume", "恢复"):
@@ -80,7 +82,10 @@ class CommandsMixin:
     def _require_admin(event, fn):
         if not event.is_admin():
             return event.plain_result("需要管理员权限才能执行该操作")
-        return fn()
+        result = fn()
+        if isinstance(result, str):
+            return event.plain_result(result)
+        return result
 
     def _status_text(self) -> str:
         poller_txt = self.poller.status_text()
@@ -227,6 +232,70 @@ class CommandsMixin:
             ok = self.config.add_target(platform, account_id, ttype, tid)
             return f"已为 {platform}:{account_id} 添加投递目标 {ttype} {tid}" if ok else "添加失败（账号不存在或参数有误）"
         return f"未知目标操作「{action}」，支持 add / clear"
+
+    def _cmd_alias(self, rest) -> str:
+        if len(rest) < 3:
+            return "用法：/phantasm alias <bilibili|x> <account_id> <代称>"
+        platform, account_id = rest[0].strip().lower(), rest[1].strip()
+        name = " ".join(rest[2:]).strip()
+        ok = self.config.set_account_display_name(platform, account_id, name)
+        if not ok:
+            return f"未找到账号 {platform}:{account_id}"
+        return f"已设置 {platform}:{account_id} 的代称：{name or '（已清空）'}"
+
+    async def _cmd_watch(self, event: AstrMessageEvent) -> "async generator":
+        """`/视奸 <代称>`：只输出该账号最新一张卡片，全局冷却。"""
+        args = self._split_args(event)
+        if args and args[0].lower() in ("视奸", "watch", "jian", "sj"):
+            args = args[1:]
+        if not args:
+            yield event.plain_result("用法：/视奸 <代称>")
+            return
+        alias = args[0].strip()
+        import time as _time
+        cd = max(0, int(self.config.send.get("cd_view_seconds", 60)))
+        now = _time.time()
+        last = getattr(self, "_watch_last", 0.0)
+        if now - last < cd:
+            yield event.plain_result(f"冷却中，请 {int(cd - (now - last))} 秒后再试")
+            return
+        self._watch_last = now   # 从本次尝试起算冷却（即使失败也计入，避免频繁请求）
+        acc = self._find_account(alias)
+        if not acc:
+            yield event.plain_result(
+                f"未找到代称/账号「{alias}」。可用 /phantasm list 查看，或用 /phantasm alias <平台> <id> <代称> 设置")
+            return
+        yield event.plain_result(f"正在抓取 {acc.key} 的最新一条…")
+        from .fetchers import build_fetcher
+        fetcher = build_fetcher(acc, self.config, self.http, self.logger)
+        if fetcher is None:
+            yield event.plain_result("未知平台")
+            return
+        try:
+            res = await fetcher.fetch_recent(limit=1)
+        except Exception as e:  # noqa: BLE001
+            yield event.plain_result(f"抓取失败：{e}")
+            return
+        if res.error:
+            yield event.plain_result(f"抓取失败：{res.error}")
+            return
+        if not res.posts:
+            yield event.plain_result("该账号暂无帖子")
+            return
+        post = res.posts[0]
+        try:
+            card = await self.renderer.render(post, acc, self.poller._render_dir())
+        except Exception as e:  # noqa: BLE001
+            yield event.plain_result(f"渲染失败：{e}")
+            return
+        yield event.image_result(card)
+        yield event.plain_result(f"「{acc.name}」最新一条：{post.display_short}")
+
+    def _find_account(self, alias: str):
+        for a in self.config.accounts():
+            if alias and (a.display_name == alias or a.account_id == alias or a.key == alias):
+                return a
+        return None
 
     def _cmd_pause(self) -> str:
         self.config.set_enabled(False)

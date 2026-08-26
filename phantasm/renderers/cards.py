@@ -250,7 +250,7 @@ class CardRenderer:
                 self._html_ok = False
                 self.logger.warning(f"HTML 渲染失败（{e}），已回退 Pillow 渲染")
         await self._ensure_font()
-        theme = resolve_theme(post.platform, self.render_cfg.get("theme") or {})
+        theme = self._theme_for(post.platform)
         canvas = await self._paint(post, account, theme)
         out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -262,6 +262,12 @@ class CardRenderer:
         else:
             canvas.save(path)
         return str(path)
+
+    def _theme_for(self, platform: str) -> dict:
+        mode_map = self.render_cfg.get("theme_mode") or {}
+        dark = str(mode_map.get(platform, "light")).lower() in ("dark", "true", "1")
+        return resolve_theme(platform, self.render_cfg.get("theme") or {},
+                             dark=dark, dark_cfg=self.render_cfg.get("dark_theme") or {})
 
     async def _render_html(self, post: Post, account: Account, out_dir: Path) -> str:
         from .html_renderer import HtmlCardRenderer

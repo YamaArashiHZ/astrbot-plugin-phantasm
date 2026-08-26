@@ -29,19 +29,46 @@ DEFAULT_THEMES: dict[str, dict[str, str]] = {
     },
 }
 
+# 深色主题（黑底，仿 X 深色）
+DEFAULT_DARK_THEMES: dict[str, dict[str, str]] = {
+    "bilibili": {
+        "primary": "#FB7299",
+        "background": "#18191C",
+        "text": "#E7E9EA",
+        "subtext": "#9499A0",
+        "accent": "#00AEEC",
+        "media_bg": "#2A2C31",
+        "divider": "#33363C",
+    },
+    "x": {
+        "primary": "#1D9BF0",
+        "background": "#000000",
+        "text": "#E7E9EA",
+        "subtext": "#71767B",
+        "accent": "#1D9BF0",
+        "media_bg": "#202327",
+        "divider": "#2F3336",
+    },
+}
+
 # 不同来源的通用主题别名 -> 默认平台主题
 _PLATFORM_KEY = {"bilibili": "bilibili", "x": "x", "twitter": "x", "bili": "bilibili"}
 
 
-def resolve_theme(platform: str, user_cfg: dict[str, Any]) -> dict[str, str]:
-    """按平台返回最终色板（用户配置覆盖默认）。"""
+def resolve_theme(platform: str, user_cfg: dict[str, Any], dark: bool = False,
+                  dark_cfg: dict[str, Any] | None = None) -> dict[str, str]:
+    """按平台返回最终色板（dark=True 用深色，用户配置覆盖默认）。"""
     key = _PLATFORM_KEY.get(platform.lower(), platform.lower())
-    base = dict(DEFAULT_THEMES.get(key, DEFAULT_THEMES.get("x", {})))
-    user = (user_cfg or {}).get(key) or (user_cfg or {}).get(platform.lower()) or {}
-    if isinstance(user, dict):
-        base.update(user)
-    # 兜底：缺字段用默认
-    for k, v in DEFAULT_THEMES.get(key, {}).items():
+    defaults = DEFAULT_DARK_THEMES if dark else DEFAULT_THEMES
+    base = dict(defaults.get(key, defaults.get("x", {})))
+    # 用户覆盖：深色优先 dark_cfg，否则 user_cfg(浅色)（深色且没配 dark_cfg 时也用浅色的用户覆盖）
+    overlay = dark_cfg.get(key) if (dark and isinstance(dark_cfg, dict)) else None
+    if overlay is None:
+        overlay = (user_cfg or {}).get(key) or (user_cfg or {}).get(platform.lower()) or {}
+    if isinstance(overlay, dict):
+        base.update(overlay)
+    # 兜底：缺字段用对应默认
+    for k, v in defaults.get(key, {}).items():
         base.setdefault(k, v)
     return base
 

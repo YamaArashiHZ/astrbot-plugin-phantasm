@@ -36,6 +36,13 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "font_path": "",
         "font_size_scale": 1.0,
         "emoji_mode": "strip",           # strip: 移除 emoji（Pillow 无法渲染彩色 emoji）/ keep: 保留（需 HTML 后端）
+        "theme_mode": {"bilibili": "light", "x": "light"},  # light / dark（黑底仿 X）
+        "dark_theme": {                   # 深色主题，可覆盖
+            "bilibili": {"primary": "#FB7299", "background": "#18191C", "text": "#E7E9EA",
+                         "subtext": "#9499A0", "accent": "#00AEEC", "media_bg": "#2A2C31", "divider": "#33363C"},
+            "x": {"primary": "#1D9BF0", "background": "#000000", "text": "#E7E9EA",
+                  "subtext": "#71767B", "accent": "#1D9BF0", "media_bg": "#202327", "divider": "#2F3336"},
+        },
         "name_color": "#000000",
         "handle_color": "#536471",
         "verified_badge": True,
@@ -63,6 +70,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "media_max": 4,
         "max_jobs_per_account": 10,
         "send_text_when_no_media": True,
+        "cd_view_seconds": 60,         # /视奸 的全局冷却（秒），避免频繁请求
     },
     "network": {
         "proxy_enabled": False,
@@ -279,6 +287,17 @@ class ConfigManager:
             if (str(a.get("platform", "")).strip().lower() == platform
                     and str(a.get("account_id", "")).strip() == str(account_id).strip()):
                 a["enabled"] = bool(enabled)
+                self.save()
+                return True
+        return False
+
+    def set_account_display_name(self, platform: str, account_id: str, name: str) -> bool:
+        """编辑某账号的代称（display_name），用于 /视奸 与 /phantasm list 展示。"""
+        platform = platform.strip().lower()
+        for a in self.config.get("accounts", []):
+            if (str(a.get("platform", "")).strip().lower() == platform
+                    and str(a.get("account_id", "")).strip() == str(account_id).strip()):
+                a["display_name"] = str(name or "").strip()
                 self.save()
                 return True
         return False

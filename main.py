@@ -82,6 +82,11 @@ class PhantasmPlugin(CommandsMixin, WebMixin, Star):
         async for r in self._phantasm_command(event):
             yield r
 
+    @filter.command("视奸", alias={"watch", "jian", "sj"})
+    async def shijian(self, event: AstrMessageEvent, prompt: str = ""):
+        async for r in self._cmd_watch(event):
+            yield r
+
     # ------------------------------------------------------------------
     # 生命周期
     # ------------------------------------------------------------------

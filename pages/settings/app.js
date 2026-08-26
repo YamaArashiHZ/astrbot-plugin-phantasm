@@ -31,6 +31,8 @@ function fillForm(cfg) {
   $("poll_jitter_seconds").value = cfg.poll_jitter_seconds ?? 10;
 
   $("render_backend").value = cfg.render?.backend ?? "html";
+  $("theme_bilibili").value = cfg.render?.theme_mode?.bilibili ?? "light";
+  $("theme_x").value = cfg.render?.theme_mode?.x ?? "light";
   $("aspect_ratio").value = (cfg.image?.aspect_ratio) ?? "1:1";
   $("corner_radius").value = cfg.image?.corner_radius ?? 24;
   $("emoji_mode").value = cfg.render?.emoji_mode ?? "strip";
@@ -65,7 +67,12 @@ function collect() {
     poll_interval_seconds: numVal("poll_interval_seconds", 300),
     poll_jitter_seconds: numVal("poll_jitter_seconds", 10),
     image: { aspect_ratio: strVal("aspect_ratio"), corner_radius: numVal("corner_radius", 24) },
-    render: { backend: strVal("render_backend"), emoji_mode: strVal("emoji_mode"), font_path: strVal("font_path") },
+    render: {
+      backend: strVal("render_backend"),
+      theme_mode: { bilibili: strVal("theme_bilibili"), x: strVal("theme_x") },
+      emoji_mode: strVal("emoji_mode"),
+      font_path: strVal("font_path"),
+    },
     send: {
       caption_format: strVal("caption_format"),
       send_caption: boolVal("send_caption"),
