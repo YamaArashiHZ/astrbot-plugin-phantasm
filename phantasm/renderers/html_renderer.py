@@ -8,7 +8,7 @@
 字体通过 ``@font-face`` 引入（CJK 用内置的 Noto 子集，emoji 用下载的 Noto Color Emoji），
 不依赖容器已安装字体。
 
-依赖：``pip install playwright && playwright install chromium``（或 ``playwright install --with-deps chromium``）。
+依赖：``pip install playwright && playwright install --with-deps chromium``（或 ``playwright install --with-deps chromium``）。
 若未安装 / Chromium 不可用，上层会回退到 Pillow 渲染。
 """
 from __future__ import annotations
@@ -112,7 +112,7 @@ class HtmlCardRenderer:
             from playwright.async_api import async_playwright
         except Exception as e:  # noqa: BLE001
             raise RuntimeError(
-                f"未安装 playwright：pip install playwright && playwright install chromium（{e}）") from e
+                f"未安装 playwright：pip install playwright && playwright install --with-deps chromium（{e}）") from e
         self._pw = await async_playwright().start()
         try:
             self._browser = await self._pw.chromium.launch(
@@ -120,7 +120,8 @@ class HtmlCardRenderer:
         except Exception as e:  # noqa: BLE001
             await self._pw.stop()
             self._pw = None
-            raise RuntimeError(f"Chromium 启动失败，请确认已执行 playwright install chromium（{e}）") from e
+            raise RuntimeError(
+                f"Chromium 启动失败，请确认在容器内执行 playwright install --with-deps chromium（{e}）") from e
 
     async def close(self):
         if self._browser is not None:
