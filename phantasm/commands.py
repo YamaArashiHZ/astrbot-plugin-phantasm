@@ -265,7 +265,6 @@ class CommandsMixin:
             yield event.plain_result(
                 f"未找到代称/账号「{alias}」。可用 /phantasm list 查看，或用 /phantasm alias <平台> <id> <代称> 设置")
             return
-        yield event.plain_result(f"正在抓取 {acc.key} 的最新一条…")
         from .fetchers import build_fetcher
         fetcher = build_fetcher(acc, self.config, self.http, self.logger)
         if fetcher is None:
@@ -288,8 +287,8 @@ class CommandsMixin:
         except Exception as e:  # noqa: BLE001
             yield event.plain_result(f"渲染失败：{e}")
             return
+        # 成功：只发图片，不加任何文字
         yield event.image_result(card)
-        yield event.plain_result(f"「{acc.name}」最新一条：{post.display_short}")
 
     def _find_account(self, alias: str):
         for a in self.config.accounts():

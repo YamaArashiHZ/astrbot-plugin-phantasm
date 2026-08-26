@@ -42,6 +42,7 @@ function fillForm(cfg) {
   $("send_caption").checked = !!cfg.send?.send_caption;
   $("link_to_post").checked = cfg.send?.link_to_post !== false;
   $("max_jobs_per_account").value = cfg.send?.max_jobs_per_account ?? 10;
+  $("cd_view_seconds").value = cfg.send?.cd_view_seconds ?? 60;
 
   $("proxy").value = cfg.network?.proxy ?? "";
   $("proxy_enabled").checked = !!cfg.network?.proxy_enabled;
@@ -78,6 +79,7 @@ function collect() {
       send_caption: boolVal("send_caption"),
       link_to_post: boolVal("link_to_post"),
       max_jobs_per_account: numVal("max_jobs_per_account", 10),
+      cd_view_seconds: numVal("cd_view_seconds", 60),
     },
     network: {
       proxy: strVal("proxy"), proxy_enabled: boolVal("proxy_enabled"),
