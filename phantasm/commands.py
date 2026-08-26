@@ -20,9 +20,8 @@
 from __future__ import annotations
 
 import re
-from typing import Optional
 
-from astrbot.api.event import AstrMessageEvent, filter
+from astrbot.api.event import AstrMessageEvent
 
 from .models import Account
 
@@ -31,6 +30,7 @@ _COMMANDS = {"phantasm", "phan"}
 
 class CommandsMixin:
     # 这些属性由主插件提供：config、poller、storage、sender、http、logger
+
     def _split_args(self, event: AstrMessageEvent) -> list[str]:
         text = (event.message_str or "").strip()
         parts = re.split(r"\s+", text)
@@ -38,9 +38,10 @@ class CommandsMixin:
             parts = parts[1:]
         return [p for p in parts if p]
 
-    @filter.command("phantasm", alias={"phan"})
-    async def phantasm(self, event: AstrMessageEvent, *_cmd_args):
-        # 兼容不同 AstrBot 版本把剩余文本塞进额外位置参数；统一从 message_str 解析
+    # 注意：@filter.command 必须在 main.py 的 Star 类里注册（AstrBot 用
+    # get_handlers_by_module_name 做「精确」模块路径匹配，handler 必须与 Star 同模块）。
+    # 这里只保留可复用的命令实现，供 main.py 的 phantasm() 转发调用。
+    async def _phantasm_command(self, event: AstrMessageEvent):
         args = self._split_args(event)
         cmd = args[0].lower() if args else "status"
         rest = args[1:]

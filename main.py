@@ -8,14 +8,7 @@ poller/commands/web 各司其职。
 """
 from __future__ import annotations
 
-import sys
 from pathlib import Path
-
-# AstrBot 不同版本的 sys.path 组织方式不同，插件根目录不一定在 import 路径上。
-# 这里把本插件根目录显式加入 sys.path，确保 `import phantasm`（子包）始终可解析。
-_PLUGIN_DIR = str(Path(__file__).resolve().parent)
-if _PLUGIN_DIR not in sys.path:
-    sys.path.insert(0, _PLUGIN_DIR)
 
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, filter
@@ -23,14 +16,17 @@ from astrbot.api.star import Context, Star
 from astrbot.api.web import error_response, json_response, request
 from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 
-from phantasm.commands import CommandsMixin
-from phantasm.config import ConfigManager
-from phantasm.http import HttpClient
-from phantasm.poller import Poller
-from phantasm.renderers import CardRenderer
-from phantasm.sender import Sender
-from phantasm.storage import StorageManager
-from phantasm.web import WebMixin
+# 用「相对导入」引入子包，使 phantasm 各模块的 module path 落在插件包前缀下
+# （如 data.plugins.astrbot_plugin_phantasm.phantasm.commands），
+# 这样 AstrBot 才能把 @filter.command 注册的命令关联到本插件。
+from .phantasm.commands import CommandsMixin
+from .phantasm.config import ConfigManager
+from .phantasm.http import HttpClient
+from .phantasm.poller import Poller
+from .phantasm.renderers import CardRenderer
+from .phantasm.sender import Sender
+from .phantasm.storage import StorageManager
+from .phantasm.web import WebMixin
 
 PLUGIN_NAME = "astrbot_plugin_phantasm"
 
@@ -73,6 +69,15 @@ class PhantasmPlugin(CommandsMixin, WebMixin, Star):
             f"/{plugin_name}/history/clear", self.web_clear_history, ["POST"], "清空已处理记录")
         context.register_web_api(
             f"/{plugin_name}/cards", self.web_get_cards, ["GET"], "查看近期生成的卡片")
+
+    # ------------------------------------------------------------------
+    # 命令：/phantasm
+    # ------------------------------------------------------------------
+    # 必须与 Star 类同模块（main.py）注册，AstrBot 才按模块前缀关联到本插件。
+    @filter.command("phantasm", alias={"phan"})
+    async def phantasm(self, event: AstrMessageEvent, *_cmd_args):
+        async for r in self._phantasm_command(event):
+            yield r
 
     # ------------------------------------------------------------------
     # 生命周期

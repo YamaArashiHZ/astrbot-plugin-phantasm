@@ -250,8 +250,12 @@ data/plugin_data/astrbot_plugin_phantasm/
     **不要**用 `127.0.0.1`（在容器里指容器自身，连不上宿主代理）。
   - 若本机可直连 B 站 / X，保持 `proxy_enabled=false` 即可。
   - 排查顺序：全局配置里的 `http_proxy`、容器的 `env | grep -i proxy`、`network.proxy` 三者是否一致可达。
-- **主动投递平台支持**：`context.send_message` 不支持所有平台（如 QQ 官方 API 平台不支持）。当前
-  以 `aiocqhttp`（OneBot v11）为主，其它平台请先用 `/phantasm list` 确认目标能否命中运行中的平台。
+
+> **开发说明**：AstrBot 通过 `get_handlers_by_module_name` 按**模块路径精确匹配**把
+> `@filter.command` / `@filter.event_message_type` 等处理器关联到插件。因此这类**装饰器必须写在
+> `main.py` 的 Star 类里**（而非子包 `phantasm/` 中），否则命令不会被注册。本插件的命令实现放在
+> `phantasm/commands.py` 的 `CommandsMixin._phantasm_command()`，由 `main.py` 的 `phantasm()`
+> 转发调用；子包模块路径会落在插件前缀下，其余模块可正常导入。
 
 ## 测试/验收
 
