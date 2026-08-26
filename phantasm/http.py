@@ -68,6 +68,38 @@ class HttpClient:
             return (self._cfg.get("proxy") or "").strip() or None
         return None
 
+    def _proxy_for(self, url: str) -> str | None:
+        """按 URL 决定是否走代理：内网/本机地址绕过代理（如自建 RSSHub host.docker.internal）。"""
+        p = self._proxy()
+        if not p:
+            return None
+        host = self._url_host(url)
+        if self._is_internal_host(host):
+            return None  # 内网直连，不塞代理
+        return p
+
+    @staticmethod
+    def _url_host(url: str) -> str:
+        try:
+            import urllib.parse as _u
+            return (_u.urlsplit(url).hostname or "").lower()
+        except Exception:  # noqa: BLE001
+            return ""
+
+    @staticmethod
+    def _is_internal_host(host: str) -> bool:
+        if not host:
+            return True
+        if host in ("127.0.0.1", "localhost", "host.docker.internal", "::1"):
+            return True
+        for prefix in ("10.", "172.16.", "172.17.", "172.18.", "172.19.", "172.20.",
+                       "172.21.", "172.22.", "172.23.", "172.24.", "172.25.", "172.26.",
+                       "172.27.", "172.28.", "172.29.", "172.30.", "172.31.", "192.168.",
+                       "169.254."):
+            if host.startswith(prefix):
+                return True
+        return False
+
     def _timeout(self) -> float:
         try:
             return float(self._cfg.get("timeout_seconds", 15))
@@ -101,7 +133,7 @@ class HttpClient:
                         timeout: float | None = None) -> bytes:
         try:
             async with httpx.AsyncClient(
-                    proxy=self._proxy(),
+                    proxy=self._proxy_for(url),
                     timeout=httpx.Timeout(timeout or self._timeout()),
                     follow_redirects=True,
                     trust_env=False) as client:
@@ -126,7 +158,7 @@ class HttpClient:
                 f"HTTP {method} {url} (第{attempt + 1}次) headers={_redact_headers(headers)!r}")
             try:
                 async with httpx.AsyncClient(
-                        proxy=self._proxy(),
+                        proxy=self._proxy_for(url),
                         timeout=httpx.Timeout(timeout),
                         follow_redirects=True,
                         trust_env=False) as client:
