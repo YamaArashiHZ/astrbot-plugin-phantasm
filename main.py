@@ -92,6 +92,13 @@ class PhantasmPlugin(CommandsMixin, WebMixin, Star):
         # 确保中文字体可用（缺省时自动下载 Noto Sans CJK，避免渲染出方框）
         await self.renderer.ensure_font(
             self.data_dir, lambda url: self.http.get_bytes(url, timeout=180))
+        # HTML 后端自检：若 backend=html，确保字体+Chromium 就绪，失败时明确告警并回退 Pillow
+        if str(self.config.render.get("backend", "html")).lower() == "html":
+            try:
+                await self.renderer.prepare_html()
+                logger.info("HTML 渲染后端已就绪（彩色 emoji 可用）")
+            except Exception as e:  # noqa: BLE001
+                logger.error(f"HTML 渲染后端不可用，将回退 Pillow 渲染：{e}")
         self.storage.prune_if_needed(self.config.storage.get("history_limit"))
         if self.config.enabled:
             self.poller.start()

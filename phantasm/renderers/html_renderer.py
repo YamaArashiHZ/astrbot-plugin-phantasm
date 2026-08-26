@@ -64,6 +64,11 @@ class HtmlCardRenderer:
         if not self._cjk_font:
             self.logger.warning("未找到中文字体，HTML 卡片中文可能显示为方框")
 
+    async def warmup(self, downloader) -> None:
+        """初始化自检：确保字体就绪并拉起 Chromium（不渲染）。失败会抛出，供上层定位。"""
+        await self.ensure_fonts(downloader)
+        await self._ensure_browser()
+
     @staticmethod
     def _find_font(folder: Path) -> Optional[Path]:
         try:

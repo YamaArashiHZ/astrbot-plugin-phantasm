@@ -273,6 +273,17 @@ class CardRenderer:
         self._html_ok = True
         return path
 
+    async def prepare_html(self) -> None:
+        """初始化自检：若 backend=html，确保字体与 Chromium 就绪。失败抛异常供上层记录。"""
+        if str(self.render_cfg.get("backend", "html")).lower() != "html":
+            return
+        from .html_renderer import HtmlCardRenderer
+        if self._html_renderer is None:
+            self._html_renderer = HtmlCardRenderer(self.config, self.logger,
+                                                   self._store_dir or Path("."))
+        await self._html_renderer.warmup(self._downloader)
+        self._html_ok = True
+
     # ----------------------------------------------------------------
     async def _paint(self, post: Post, account: Account, theme) -> Image.Image:
         is_x = post.platform == "x"
