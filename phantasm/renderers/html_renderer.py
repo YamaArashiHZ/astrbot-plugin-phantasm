@@ -205,6 +205,9 @@ body {{ margin:0; background:{bg}; font-family:'cjk','ph-emojis',sans-serif; col
         like = self._num(post.like_count)
         quote = self._num(post.stats.get("quote", 0))
         quote_html = f'<span>引用 {quote}</span>' if quote else ""
+        stats_html = (f'<div class="stats"><span>回复 {reply}</span><span>转发 {repost}</span>'
+                      f'<span>喜欢 {like}</span>{quote_html}</div>') \
+            if not post.extra.get("stats_unavailable") else ""
         return f"""
 <div class="card xcard" id="card">
   <div class="brand"><span class="brand-pill">X / Twitter</span></div>
@@ -217,7 +220,7 @@ body {{ margin:0; background:{bg}; font-family:'cjk','ph-emojis',sans-serif; col
   </div>
   <div class="content">{content}</div>
   {media}
-  <div class="stats"><span>回复 {reply}</span><span>转发 {repost}</span><span>喜欢 {like}</span>{quote_html}</div>
+  {stats_html}
   <div class="wm">Phantasm · X / Twitter</div>
 </div>"""
 

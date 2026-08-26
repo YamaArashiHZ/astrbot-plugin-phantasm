@@ -359,8 +359,9 @@ class CardRenderer:
         quote_y = media_top + media_h + (12 if (media_imgs and quote_lines) else (12 if quote_lines else 0))
         quote_h = (len(quote_lines) * quote_lh + 22) if quote_lines else 0
         stats_y = quote_y + quote_h + (12 if quote_h else 0)
-        stat_h = 30
-        total_h = stats_y + stat_h + FOOTER_EXTRA + PAD
+        show_stats = not bool(post.extra.get("stats_unavailable"))
+        stat_h = 30 if show_stats else 0
+        total_h = stats_y + stat_h + (FOOTER_EXTRA if show_stats else 12) + PAD
 
         canvas = Image.new("RGB", (CARD_W, max(int(total_h), 240)), bg)
         draw = ImageDraw.Draw(canvas)
@@ -411,12 +412,15 @@ class CardRenderer:
                 draw.text((PAD + 10, cy), ln, font=self._quote_font, fill=sub_c)
                 cy += quote_lh
 
-        # ---- 统计条 ----
-        self._stats(draw, post, stat_font, sub_c, stats_y, is_x)
-        rule_y = stats_y + stat_h - 4
-        draw.line([(PAD, rule_y), (CARD_W - PAD, rule_y)], fill=divider, width=1)
+        # ---- 统计条（RSS 等来源无互动数据时隐藏） ----
         wm_font = self.fonts.font(14)
-        draw.text((PAD, stats_y + stat_h), f"Phantasm · {label}", font=wm_font, fill=sub_c)
+        if show_stats:
+            self._stats(draw, post, stat_font, sub_c, stats_y, is_x)
+            rule_y = stats_y + stat_h - 4
+            draw.line([(PAD, rule_y), (CARD_W - PAD, rule_y)], fill=divider, width=1)
+            draw.text((PAD, stats_y + stat_h), f"Phantasm · {label}", font=wm_font, fill=sub_c)
+        else:
+            draw.text((PAD, stats_y), f"Phantasm · {label}", font=wm_font, fill=sub_c)
         return canvas
 
     # ----------------------------------------------------------------

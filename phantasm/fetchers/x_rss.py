@@ -71,15 +71,23 @@ class XRssFetcher(BaseFetcher):
         except ET.ParseError as e:
             self.logger.warning(f"RSS 解析失败：{e}")
             return []
+        # 频道级头像：RSSHub 在 <channel><image><url> 里给用户头像
+        channel_avatar = ""
+        try:
+            img = root.find("channel/image/url")
+            if img is not None and img.text:
+                channel_avatar = img.text.strip()
+        except Exception:  # noqa: BLE001
+            pass
         posts: list[Post] = []
         for item in list(root.iter("item"))[:40]:
             try:
-                posts.append(self._parse_item(item, screen))
+                posts.append(self._parse_item(item, screen, channel_avatar))
             except Exception as e:  # noqa: BLE001
                 self.logger.debug(f"解析 RSS 条目失败：{e}")
         return [p for p in posts if p]
 
-    def _parse_item(self, item: ET.Element, screen: str) -> Optional[Post]:
+    def _parse_item(self, item: ET.Element, screen: str, channel_avatar: str = "") -> Optional[Post]:
         text = lambda tag: (item.findtext(tag) or "").strip()  # noqa: E731
         title = text("title")
         desc = text("description")
@@ -118,7 +126,7 @@ class XRssFetcher(BaseFetcher):
             post_id=post_id,
             author_name=screen,
             author_handle=f"@{screen}",
-            author_avatar_url="",
+            author_avatar_url=channel_avatar,
             content=content,
             created_at=pub[:25] or "",
             created_ts=ts,
@@ -126,7 +134,7 @@ class XRssFetcher(BaseFetcher):
             stats={},
             url=url,
             source_type="rss",
-            extra={"rss": True, "link": link},
+            extra={"rss": True, "link": link, "stats_unavailable": True},
         )
 
     @staticmethod
