@@ -198,6 +198,18 @@ class CardRenderer:
         body_lh = body_font.getmetrics()[0] + body_font.getmetrics()[1] + 4
         body_h = len(body_lines) * body_lh
 
+        # 标题（OPUS 图文动态的标题，如“拼豆”）
+        title = sanitize_text(post.extra.get("title") or "", emoji_mode=emoji_mode)
+        title_font = None
+        title_lines: list[str] = []
+        title_lh = 0
+        title_h = 0
+        if title:
+            title_font = self.fonts.font(int(24 * self._scale))
+            title_lines = wrap_text(measure, title, title_font, content_w)
+            title_lh = title_font.getmetrics()[0] + title_font.getmetrics()[1] + 4
+            title_h = len(title_lines) * title_lh
+
         grid_layout = self._grid_layout(len(media_imgs))
 
         # bilibili 转发引用块
@@ -215,7 +227,8 @@ class CardRenderer:
         header_y = brand_bottom + 8      # 头部与胶囊之间留 8px
         header_h = avatar_size
         body_y = header_y + header_h + 12
-        media_top = body_y + body_h + (12 if body_h else 0)
+        content_y = body_y + (title_h + 6 if title_h else 0)
+        media_top = content_y + body_h + (12 if body_h else 0)
         media_h = grid_layout["total_h"] if media_imgs else 0
         quote_y = media_top + media_h + (12 if (media_imgs and quote_lines) else (12 if quote_lines else 0))
         quote_h = (len(quote_lines) * quote_lh + 22) if quote_lines else 0
@@ -249,8 +262,14 @@ class CardRenderer:
         meta_text = f"{handle} · {post.created_at}" if post.created_at else handle
         draw.text((nx, meta_y), meta_text, font=meta_font, fill=sub_c)
 
-        # ---- 正文 ----
-        self._draw_wrapped(draw, content, body_font, text_c, PAD, body_y, content_w, body_lh)
+        # ---- 标题（如有） + 正文 ----
+        if title_lines:
+            cy = body_y
+            for ln in title_lines:
+                draw.text((PAD, cy), ln, font=title_font, fill=text_c)
+                cy += title_lh
+        if body_h:
+            self._draw_wrapped(draw, content, body_font, text_c, PAD, content_y, content_w, body_lh)
 
         # ---- 媒体 ----
         if media_imgs:

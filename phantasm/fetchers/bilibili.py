@@ -96,26 +96,77 @@ class BilibiliFetcher(BaseFetcher):
         items = (data.get("data") or {}).get("items") or []
         posts = [p for p in (self._parse_item(it, account_id) for it in items) if p is not None]
         posts.sort(key=lambda p: p.created_ts, reverse=True)
-        # B 站 feed 对部分图文动态不返回 desc（正文为空但有图），此时从 detail 接口补正文。
+        # B 站 feed 对部分图文（OPUS）动态不返回 desc（正文为空但有图），此时从
+        # opus-detail 页面（t.bilibili.com/{id}）的 __INITIAL_STATE__ 补标题与正文。
         # 只补前 3 条，避免批量请求触发风控。
         filled = 0
         for p in posts:
             if not p.content and p.media_urls and filled < 3:
                 try:
-                    d = await self._fetch_detail_desc(p.post_id)
-                    if d:
-                        p.content = d
-                        p.extra["content_from_detail"] = True
+                    title, body = await self._fetch_opus_content(p.post_id)
+                    if title or body:
+                        p.content = body or title
+                        if title:
+                            p.extra["title"] = title
+                        p.extra["content_from_opus"] = True
                         filled += 1
                 except Exception:  # noqa: BLE001
                     pass
         return FetchResult(posts=posts[:limit], total=len(posts))
 
-    async def _fetch_detail_desc(self, post_id: str) -> str:
-        """从动态详情接口取正文（feed 里 desc 为空的图文动态）。"""
-        detail = await self._fetch_detail_raw(post_id)
-        dyn = ((detail.get("item") or {}).get("modules") or {}).get("module_dynamic") or {}
-        return self._extract_content(dyn)
+    async def _fetch_opus_content(self, post_id: str) -> tuple[str, str]:
+        """从 opus-detail 页面（t.bilibili.com/{id}）的 __INITIAL_STATE__ 取标题与正文。
+
+        B 站的 feed/detail JSON 接口对图文（OPUS）动态返回 desc:null，但网页端会把
+        完整内容内嵌在 HTML 的 ``window.__INITIAL_STATE__`` 里，这里回退抓取解析。
+        """
+        cookie = await self._build_cookie()
+        url = f"https://t.bilibili.com/{post_id}"
+        headers = {"User-Agent": UA, "Referer": url}
+        if cookie:
+            headers["Cookie"] = cookie
+        try:
+            html = await self.http.get_bytes(url, headers=headers)
+        except Exception:  # noqa: BLE001
+            return "", ""
+        text = html.decode("utf-8", errors="ignore")
+        m = re.search(r"window\.__INITIAL_STATE__\s*=\s*(\{.*?\})\s*;", text, re.S)
+        if not m:
+            return "", ""
+        try:
+            state = json.loads(m.group(1))
+        except Exception:  # noqa: BLE001
+            return "", ""
+        detail = state.get("detail") or {}
+        title = ""
+        body_parts: list[str] = []
+        for mod in detail.get("modules") or []:
+            if not isinstance(mod, dict):
+                continue
+            mt = mod.get("module_type")
+            if mt == "MODULE_TYPE_TITLE":
+                title = (mod.get("module_title") or {}).get("text") or ""
+            elif mt == "MODULE_TYPE_CONTENT":
+                mc = mod.get("module_content") or {}
+                for para in mc.get("paragraphs") or []:
+                    if not isinstance(para, dict):
+                        continue
+                    if para.get("para_type") in (1, 3):  # 文本段落
+                        t = self._extract_opus_paragraph(para)
+                        if t:
+                            body_parts.append(t)
+        body = "\n".join(x for x in body_parts if x)
+        return title, body
+
+    @staticmethod
+    def _extract_opus_paragraph(para: dict) -> str:
+        nodes = ((para.get("text") or {}).get("nodes")) or []
+        parts = []
+        for node in nodes:
+            if isinstance(node, dict):
+                w = node.get("word") or {}
+                parts.append(w.get("words") or "")
+        return "".join(parts).strip()
 
     async def _fetch_detail_raw(self, post_id: str) -> dict:
         """返回动态详情接口的原始 data 对象（调试 / 正文补齐用）。"""
