@@ -29,6 +29,8 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/120.0 Safari/537.36")
 _TAG_RE = re.compile(r"<[^>]+>")
 _IMG_RE = re.compile(r'<img[^>]+src=["\']([^"\']+)["\']', re.IGNORECASE)
+_VIDEO_POSTER_RE = re.compile(r'<video[^>]+poster=["\']([^"\']+)["\']', re.IGNORECASE)
+_VIDEO_SRC_RE = re.compile(r'<video[^>]+src=["\']([^"\']+)["\']', re.IGNORECASE)
 _STATUS_RE = re.compile(r"/status/(\d+)")
 
 
@@ -90,10 +92,14 @@ class XRssFetcher(BaseFetcher):
             desc_text = _TAG_RE.sub("", desc)
             content = sanitize_text(desc_text, emoji_mode="keep")
 
-        # 媒体图：从 description 里抽 img src（RSSHub 会内嵌 pbs.twimg.com 图片）
-        media_urls = [u for u in _IMG_RE.findall(desc) if u.startswith("http")]
-        # 去重
-        media_urls = list(dict.fromkeys(media_urls))
+        # 媒体图：从 description 里抽 img src + 视频海报(RSSHub 会用 <video poster=...>)
+        media_urls: list[str] = []
+        for u in _IMG_RE.findall(desc):
+            if u.startswith("http") and u not in media_urls:
+                media_urls.append(u)
+        for u in _VIDEO_POSTER_RE.findall(desc):
+            if u.startswith("http") and u not in media_urls:
+                media_urls.append(u)
 
         post_id = ""
         m = _STATUS_RE.search(link)
