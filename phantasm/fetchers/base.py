@@ -188,6 +188,10 @@ def build_fetcher(account: Account, config: ConfigManager, http: HttpClient,
     if account.platform == "bilibili":
         return BilibiliFetcher(account, config, http, logger)
     if account.platform == "x":
+        mode = str((config.get("credentials", {}).get("x") or {}).get("mode", "api")).lower()
+        if mode == "rss":
+            from .x_rss import XRssFetcher
+            return XRssFetcher(account, config, http, logger)
         return XFetcher(account, config, http, logger)
     return None
 

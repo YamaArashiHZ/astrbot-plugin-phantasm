@@ -15,7 +15,7 @@ Phantasm 是一款面向 **AstrBot** 的发帖监听插件：它会定时检查�
 |---|---|
 | 账号监听 | 可配置轮询间隔（含随机抖动），后台异步任务定时抓取 |
 | Bilibili | REST API（用户动态接口 `feed/space`），需 Cookie |
-| X/Twitter | 官方 API v2（`/2/users/…/tweets`），需 Bearer Token |
+| X/Twitter | 官方 API v2（`/2/users/…/tweets`，需 Bearer Token/额度）**或 RSSHub 第三方**（`credentials.x.mode=rss`，免费不占官额） |
 | 卡片渲染 | **html（Playwright/Chromium，推荐，彩色 emoji）** 或 Pillow 兜底；B 站粉 / X 黑白主题、圆角、媒体网格、统计条 |
 | 去重 | `processed.json` 持久化已处理帖子 ID，有界历史，杜绝重复投递 |
 | 独立目标 | 每个账号可配置一个或多个 `group` / `private` 目标 |
@@ -34,7 +34,7 @@ Phantasm 是一款面向 **AstrBot** 的发帖监听插件：它会定时检查�
 - AstrBot `>=4.16,<5`，`aiocqhttp`（OneBot v11）平台
 - Python 3.10+；依赖：`httpx`、`Pillow`（见 `requirements.txt`）
 - Bilibili：需要一个可用的 Cookie（至少 `buvid3`/`buvid4`；**建议含登录态 `SESSDATA`** 以降低风控）
-- X/Twitter：一个官方 API v2 的 **Bearer Token**（App-only token 即可读取公开推文）
+- X/Twitter：官方 API v2 的 **Bearer Token**（App-only token，读公开推文）；**或**用 RSSHub 第三方（`credentials.x.mode=rss`，需一个可达的 RSSHub 实例，无需官方额度）
 
 > 说明：默认用 **HTML→图片（`render.backend=html`，Playwright + Chromium）** 渲染卡片，
 > 能原生输出**彩色 emoji**，布局也更精细。若容器未装 Playwright/Chromium，插件会**自动回退到
@@ -129,8 +129,9 @@ data/plugin_data/astrbot_plugin_phantasm/config.json
       "enable_risk_control_retry": true
     },
     "x": {
-      "mode": "api",                   // api（官方 API v2）；scrape 暂不支持
-      "bearer_token": "",              // 官方 API v2 Bearer Token
+      "mode": "api",                   // api（官方 API v2，需额度）/ rss（RSSHub 第三方，免费不占额度）
+      "bearer_token": "",              // 官方 API v2 Bearer Token（mode=api 需要）
+      "rss_base": "https://rsshub.app",// mode=rss 时的 RSSHub 实例地址（可换自建/其它实例）
       "api_key": "", "api_secret": "",
       "access_token": "", "access_token_secret": ""
     }
@@ -193,6 +194,8 @@ data/plugin_data/astrbot_plugin_phantasm/config.json
 - **X**：`GET https://api.twitter.com/2/users/<id>/tweets?tweet.fields=…&expansions=…&media.fields=…`。
   `account_id` 是数字 user_id 直接使用；是 screen_name 先经 `/2/users/by/username/<name>` 解析并缓存。
   提取 `includes.media` 与 `includes.users` 得到媒体与作者，`public_metrics` 得到回复/转发/点赞/引用数。
+- **X（RSS 模式）**：`credentials.x.mode=rss` 时改为抓 `GET <rss_base>/twitter/user/<screen_name>`
+  （RSSHub），解析 title/描述/pubDate/link/内嵌媒体，**不消耗 X 官方额度**；依赖 RSSHub 实例可用性。
 
 ### 鉴权与限流
 

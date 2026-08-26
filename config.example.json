@@ -61,6 +61,7 @@
     "x": {
       "mode": "api",
       "bearer_token": "",
+      "rss_base": "https://rsshub.app",
       "api_key": "",
       "api_secret": "",
       "access_token": "",

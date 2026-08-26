@@ -79,8 +79,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "enable_risk_control_retry": True,
         },
         "x": {
-            "mode": "api",               # api: 官方 API v2 / scrape: 网页抓取（受限）
+            "mode": "api",               # api: 官方 API v2 / rss: RSSHub 第三方(免费不占额度)
             "bearer_token": "",
+            "rss_base": "https://rsshub.app",   # mode=rss 时的 RSSHub 实例地址
             "api_key": "",
             "api_secret": "",
             "access_token": "",
