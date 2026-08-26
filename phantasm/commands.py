@@ -57,6 +57,9 @@ class CommandsMixin:
             yield event.plain_result(self._list_text())
         elif cmd in ("history", "记录"):
             yield event.plain_result(self._history_text(rest))
+        elif cmd in ("raw", "原始"):
+            async for r in self._cmd_raw(event, rest):
+                yield r
         elif cmd in ("add", "添加"):
             yield self._require_admin(event, lambda: self._cmd_add(rest))
         elif cmd in ("del", "delete", "删除"):
@@ -110,6 +113,49 @@ class CommandsMixin:
         if not recent:
             return "暂无已处理记录"
         return "最近处理：\n" + "\n".join(f"• {k}" for k in recent)
+
+    async def _cmd_raw(self, event: AstrMessageEvent, rest) -> "async generator":
+        """调试：抓取指定账号的原始 JSON 并写入日志（搜 phan_raw）。"""
+        if len(rest) < 2:
+            yield event.plain_result("用法：/phantasm raw <bilibili|x> <account_id> [条数]")
+            return
+        platform = rest[0].strip().lower()
+        account_id = rest[1].strip()
+        try:
+            limit = max(1, min(int(rest[2]), 20)) if len(rest) > 2 and rest[2].isdigit() else 1
+        except (IndexError, ValueError):
+            limit = 1
+        if platform not in ("bilibili", "x"):
+            yield event.plain_result(f"不支持的平台「{platform}」，仅支持 bilibili / x")
+            return
+        if not account_id:
+            yield event.plain_result("account_id 不能为空")
+            return
+
+        yield event.plain_result("正在抓取原始数据并写入日志（搜 phan_raw）…")
+        from .fetchers import build_fetcher
+        fetcher = build_fetcher(
+            Account(platform=platform, account_id=account_id, display_name=""),
+            self.config, self.http, self.logger)
+        if fetcher is None:
+            yield event.plain_result("未知平台")
+            return
+        try:
+            raw = await fetcher.fetch_raw(limit=limit)
+        except Exception as e:  # noqa: BLE001
+            yield event.plain_result(f"抓取失败：{e}")
+            return
+        if not raw:
+            yield event.plain_result(
+                f"未抓到 {platform}:{account_id} 的原始数据（检查凭据或 B 站风控）")
+            return
+        import json as _json
+        self.logger.info(f"phan_raw 开始 [{platform}:{account_id}] 条数={len(raw)}")
+        for i, item in enumerate(raw):
+            self.logger.info(f"phan_raw #{i}: {_json.dumps(item, ensure_ascii=False)}")
+        self.logger.info("phan_raw 结束")
+        yield event.plain_result(
+            f"已抓取 {platform}:{account_id} 原始 {len(raw)} 条，完整 JSON 已写入日志（搜 phan_raw）。")
 
     def _cmd_add(self, rest) -> str:
         if len(rest) < 2:
@@ -172,6 +218,7 @@ class CommandsMixin:
                 "/phantasm check       立即检查并投递新帖\n"
                 "/phantasm list        查看订阅\n"
                 "/phantasm history [n] 最近处理记录\n"
+                "/phantasm raw <p> <id> [n]  调试：输出最新原始 JSON 到日志(搜 phan_raw)\n"
                 "/phantasm add <p> <id> [名称]   添加账号\n"
                 "/phantasm del <p> <id>         删除账号\n"
                 "/phantasm target <p> <id> add group|private|umo <id>\n"

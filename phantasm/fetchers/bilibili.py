@@ -98,6 +98,20 @@ class BilibiliFetcher(BaseFetcher):
         posts.sort(key=lambda p: p.created_ts, reverse=True)
         return FetchResult(posts=posts[:limit], total=len(posts))
 
+    async def fetch_raw(self, limit: int = 5) -> list:
+        """返回最近动态的原始 item 字典列表（调试用，不解析）。"""
+        cookie = await self._build_cookie()
+        if not cookie:
+            return []
+        params = {"host_mid": self.account.account_id, "timezone_offset": "-480"}
+        try:
+            data = await self.http.get_json(SPACE_FEED, headers=self._headers(cookie), params=params)
+        except Exception:  # noqa: BLE001
+            return []
+        if data.get("code") != 0:
+            return []
+        return ((data.get("data") or {}).get("items") or [])[:limit]
+
     # ----------------------------------------------------------------
     def _headers(self, cookie: str) -> dict[str, str]:
         h = {
@@ -203,14 +217,13 @@ class BilibiliFetcher(BaseFetcher):
             if author_name and author_name != self.account.account_id:
                 account_name = author_name
 
-            # 诊断：有图但正文为空，打印结构与 desc 片段，便于定位特殊 type 的文本字段
+            # 诊断：有图但正文为空，打印整条动态 JSON 片段，便于定位特殊 type 的文本字段
             if not content_text and media:
                 try:
                     import json as _json
                     self.logger.warning(
                         f"[bilibili:{post_id}] 有图但未提取到正文 type={dtype} "
-                        f"desc={_json.dumps(desc, ensure_ascii=False)[:160]!r} "
-                        f"major={_json.dumps(dyn_mod.get('major'), ensure_ascii=False)[:160]!r}")
+                        f"item={_json.dumps(item, ensure_ascii=False)[:2000]!r}")
                 except Exception:
                     pass
 

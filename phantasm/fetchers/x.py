@@ -85,6 +85,29 @@ class XFetcher(BaseFetcher):
         posts.sort(key=lambda p: p.created_ts, reverse=True)
         return FetchResult(posts=posts[:limit], total=len(posts))
 
+    async def fetch_raw(self, limit: int = 5) -> list:
+        """返回最近推文的原始 tweet 字典列表（调试用，不解析）。"""
+        creds = self.config.x_credentials() or {}
+        token = (creds.get("bearer_token") or "").strip()
+        if not token:
+            return []
+        user_id = await self._resolve_user_id()
+        if not user_id:
+            return []
+        params = {
+            "tweet.fields": "created_at,public_metrics,referenced_tweets,author_id,entities,lang",
+            "expansions": "attachments.media_keys,author_id",
+            "media.fields": "url,preview_image_url,type,width,height,alt_text",
+            "user.fields": "name,username,profile_image_url,verified,verified_type",
+            "max_results": max(1, min(limit, 100)),
+        }
+        try:
+            data = await self.http.get_json(
+                f"{API_BASE}/users/{user_id}/tweets", headers=self._headers(token), params=params)
+        except Exception:  # noqa: BLE001
+            return []
+        return (data.get("data") or [])[:limit]
+
     async def _resolve_user_id(self) -> str:
         """account_id 若是数字，直接用；否则用 screen_name 解析（带缓存）。"""
         acc_id = self.account.account_id.strip()

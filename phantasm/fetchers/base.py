@@ -144,6 +144,10 @@ class BaseFetcher(ABC):
         """
         raise NotImplementedError
 
+    async def fetch_raw(self, limit: int = 5) -> list:
+        """抓取原始条目 JSON（调试用）。基类默认返回空列表，子类可覆盖。"""
+        return []
+
     # ----------------------------------------------------------------
     def err_result(self, msg: str) -> FetchResult:
         return FetchResult(error=msg)
