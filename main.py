@@ -74,8 +74,9 @@ class PhantasmPlugin(CommandsMixin, WebMixin, Star):
     # 命令：/phantasm
     # ------------------------------------------------------------------
     # 必须与 Star 类同模块（main.py）注册，AstrBot 才按模块前缀关联到本插件。
+    # 参数用 (event, prompt="") 而非 *args，避免 AstrBot 的命令参数绑定把变长参数当作必填项。
     @filter.command("phantasm", alias={"phan"})
-    async def phantasm(self, event: AstrMessageEvent, *_cmd_args):
+    async def phantasm(self, event: AstrMessageEvent, prompt: str = ""):
         async for r in self._phantasm_command(event):
             yield r
 
