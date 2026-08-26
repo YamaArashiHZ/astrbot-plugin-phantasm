@@ -37,6 +37,7 @@ function fillForm(cfg) {
 
   $("caption_format").value = cfg.send?.caption_format ?? "{platform} · {author} · {time}";
   $("send_caption").checked = !!cfg.send?.send_caption;
+  $("link_to_post").checked = cfg.send?.link_to_post !== false;
   $("max_jobs_per_account").value = cfg.send?.max_jobs_per_account ?? 10;
 
   $("proxy").value = cfg.network?.proxy ?? "";
@@ -65,6 +66,7 @@ function collect() {
     send: {
       caption_format: strVal("caption_format"),
       send_caption: boolVal("send_caption"),
+      link_to_post: boolVal("link_to_post"),
       max_jobs_per_account: numVal("max_jobs_per_account", 10),
     },
     network: {

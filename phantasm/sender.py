@@ -78,7 +78,11 @@ class Sender:
             )
         except (KeyError, IndexError, ValueError):
             caption = f"{platform_label} · {post.author_name or account.name} · {post.created_at or ''}"
-        return caption.strip()
+        caption = caption.strip()
+        # 附上原贴链接（QQ 里可点击），可关闭
+        if self.send_cfg.get("link_to_post", True) and post.url:
+            caption = caption + f"\n原帖：{post.url}" if caption else f"原帖：{post.url}"
+        return caption
 
     def _build_chain(self, post, account, card_path: str, caption: str) -> MessageChain:
         chain = MessageChain()

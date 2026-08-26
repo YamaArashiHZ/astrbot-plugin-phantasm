@@ -38,6 +38,7 @@
   "send": {
     "caption_format": "{platform} · {author} · {time}",
     "send_caption": true,
+    "link_to_post": true,
     "media_max": 4,
     "max_jobs_per_account": 10,
     "send_text_when_no_media": true

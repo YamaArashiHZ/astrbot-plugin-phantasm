@@ -59,6 +59,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "send": {
         "caption_format": "{platform} · {author} · {time}",
         "send_caption": True,
+        "link_to_post": True,          # 在文字说明末尾附上原贴链接（QQ 内可点击）
         "media_max": 4,
         "max_jobs_per_account": 10,
         "send_text_when_no_media": True,

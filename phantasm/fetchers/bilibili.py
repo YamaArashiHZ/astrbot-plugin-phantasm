@@ -158,10 +158,8 @@ class BilibiliFetcher(BaseFetcher):
                 return None
             dtype = str(item.get("type") or "")
 
-            content_text = sanitize_text(
-                ((dyn_mod.get("desc") or {}).get("text") or ""),
-                emoji_mode=self.config.render.get("emoji_mode", "strip"),
-            )
+            desc = dyn_mod.get("desc") or {}
+            content_text = self._extract_desc_text(desc)
 
             media, title, source, card_stats, duration_text = self._extract_media(dtype, dyn_mod)
 
@@ -186,10 +184,8 @@ class BilibiliFetcher(BaseFetcher):
                 om = orig.get("modules") or {}
                 o_author = (om.get("module_author") or {}).get("name") or ""
                 o_dyn = om.get("module_dynamic") or {}
-                o_content = sanitize_text(
-                    ((o_dyn.get("desc") or {}).get("text") or ""),
-                    emoji_mode=self.config.render.get("emoji_mode", "strip"),
-                )
+                o_desc = (o_dyn.get("desc") or {}) or {}
+                o_content = self._extract_desc_text(o_desc)
                 o_media, o_title, _o_src, _o_cs, _o_dur = self._extract_media(str(orig.get("type") or ""), o_dyn)
                 orig_author, orig_content, orig_media = o_author, o_content, list(o_media)
                 extra["orig_author"] = orig_author
@@ -228,6 +224,24 @@ class BilibiliFetcher(BaseFetcher):
         except Exception as e:  # noqa: BLE001
             self.logger.warning(f"解析 B 站动态失败（id={item.get('id_str')}）：{e}")
             return None
+
+    def _extract_desc_text(self, desc: dict) -> str:
+        """提取动态正文。
+
+        优先 ``desc.text``；为空时回退拼接 ``desc.rich_text_nodes`` 的文本
+        （部分图文/纯文本动态的正文只存在于 rich_text_nodes 中）。
+        """
+        emoji_mode = self.config.render.get("emoji_mode", "strip")
+        if not desc:
+            return ""
+        txt = (desc.get("text") or "").strip()
+        if txt:
+            return sanitize_text(txt, emoji_mode=emoji_mode)
+        nodes = desc.get("rich_text_nodes") or []
+        if nodes:
+            joined = "".join(str(n.get("text") or "") for n in nodes if isinstance(n, dict))
+            return sanitize_text(joined, emoji_mode=emoji_mode)
+        return ""
 
     def _extract_media(self, dtype: str, dyn_mod: dict) -> tuple[list[str], str, str, dict[str, int], str]:
         """返回 (media_urls, title, source_type, card_stats, duration_text)。"""

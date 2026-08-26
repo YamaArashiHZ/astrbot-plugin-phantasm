@@ -31,16 +31,22 @@ BRAND_H = 30
 FOOTER_EXTRA = 18
 GAP = 8
 
+# 无中文字体时的兜底：首次渲染前尝试下载 Noto Sans CJK SC（OFL 许可，一次性、落盘于插件 data 目录）。
+FONT_DOWNLOAD_URL = ("https://raw.githubusercontent.com/notofonts/noto-cjk/main/"
+                     "Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf")
+
 
 class CardRenderer:
-    def __init__(self, config: ConfigManager, logger: logging.Logger):
+    def __init__(self, config: ConfigManager, logger: logging.Logger, store_dir: Path | None = None):
         self.config = config
         self.logger = logger
         self.render_cfg = config.render
         self.image_cfg = config.image
         self.send_cfg = config.send
+        self._store_dir = Path(store_dir) if store_dir else None
         self.fonts = FontResolver(override=str(self.render_cfg.get("font_path", "")), logger=logger)
         self._downloader: Optional[callable] = None
+        self._font_ensured = False
         try:
             self._scale = max(0.8, min(1.5, float(self.render_cfg.get("font_size_scale", 1.0) or 1.0)))
         except (TypeError, ValueError):
@@ -53,7 +59,67 @@ class CardRenderer:
         self._downloader = fn
 
     # ----------------------------------------------------------------
+    # 字体就绪（缺失时自动下载中文字体；失败降级默认字体并告警）
+    # ----------------------------------------------------------------
+    async def ensure_font(self, store_dir: Path | None = None,
+                          downloader: Optional[callable] = None) -> None:
+        self._font_ensured = True
+        if store_dir:
+            self._store_dir = Path(store_dir)
+        if self.fonts.resolve():
+            return  # 已能找到字体（render.font_path / 系统路径）
+
+        # 1) 插件包内置字体目录 phantasm/fonts/
+        pkg_fonts = Path(__file__).resolve().parent.parent / "fonts"
+        found = self._first_font(pkg_fonts)
+        # 2) 插件 data 目录的 fonts/（用户可自行放字体）
+        if not found and self._store_dir:
+            found = self._first_font(self._store_dir / "fonts")
+        if found:
+            self.fonts = FontResolver(override=str(found), logger=self.logger)
+            self.logger.info(f"已使用字体：{found}")
+            return
+
+        dl = downloader or self._downloader
+        if not dl or not self._store_dir:
+            self.logger.warning("未找到中文字体且无可用下载器，中文可能显示为方框；"
+                                "请设置 render.font_path 或把 .ttf/.otf 放进插件 data 目录 fonts/")
+            return
+        fonts_dir = self._store_dir / "fonts"
+        try:
+            fonts_dir.mkdir(parents=True, exist_ok=True)
+            target = fonts_dir / "NotoSansCJKsc-Regular.otf"
+            if not target.exists():
+                self.logger.info("未找到中文字体，正在下载 Noto Sans CJK SC…")
+                data = await dl(FONT_DOWNLOAD_URL)
+                target.write_bytes(data)
+            self.fonts = FontResolver(override=str(target), logger=self.logger)
+            self.logger.info(f"中文字体已就绪：{target}")
+        except Exception as e:  # noqa: BLE001
+            self.logger.warning(f"中文字体下载失败，中文可能显示为方框：{e}。"
+                                f"请手动放置字体到 {fonts_dir} 或设置 render.font_path")
+
+    @staticmethod
+    def _first_font(folder: Path) -> Optional[Path]:
+        try:
+            if not folder.exists():
+                return None
+            for f in sorted(folder.iterdir()):
+                if f.is_file() and f.suffix.lower() in (".ttf", ".otf", ".ttc"):
+                    return f
+        except OSError:
+            return None
+        return None
+
+    async def _ensure_font(self) -> None:
+        if not self._font_ensured and (self._store_dir or self._downloader):
+            await self.ensure_font(self._store_dir, self._downloader)
+        else:
+            self._font_ensured = True
+
+    # ----------------------------------------------------------------
     async def render(self, post: Post, account: Account, out_dir: Path) -> str:
+        await self._ensure_font()
         theme = resolve_theme(post.platform, self.render_cfg.get("theme") or {})
         canvas = await self._paint(post, account, theme)
         out_dir = Path(out_dir)
@@ -130,7 +196,9 @@ class CardRenderer:
         quote_h = (len(quote_lines) * quote_lh + 22) if quote_lines else 0
         stats_y = quote_y + quote_h + (12 if quote_h else 0)
         stat_h = 30
-        total_h = stats_y + stat_h + FOOTER_EXTRA + PAD
+        show_link = bool(post.url) and bool(self.send_cfg.get("link_to_post", True))
+        link_h = 20 if show_link else 0
+        total_h = stats_y + stat_h + FOOTER_EXTRA + link_h + PAD
 
         canvas = Image.new("RGB", (CARD_W, max(int(total_h), 240)), bg)
         draw = ImageDraw.Draw(canvas)
@@ -179,8 +247,19 @@ class CardRenderer:
         self._stats(draw, post, stat_font, sub_c, stats_y, is_x)
         rule_y = stats_y + stat_h - 4
         draw.line([(PAD, rule_y), (CARD_W - PAD, rule_y)], fill=divider, width=1)
-        draw.text((PAD, stats_y + stat_h),
-                  f"Phantasm · {label}", font=self.fonts.font(14), fill=sub_c)
+        wm_font = self.fonts.font(14)
+        draw.text((PAD, stats_y + stat_h), f"Phantasm · {label}", font=wm_font, fill=sub_c)
+        if show_link and post.url:
+            y_link = stats_y + stat_h + 20
+            lf = self.fonts.font(15)
+            link_text = f"原帖：{post.url}"
+            # 超宽则按字符截断，保证不超出右边界
+            max_w = CARD_W - 2 * PAD
+            if lf.getlength(link_text) > max_w:
+                while link_text and lf.getlength(link_text + "…") > max_w:
+                    link_text = link_text[:-1]
+                link_text += "…"
+            draw.text((PAD, y_link), link_text, font=lf, fill=rgb(theme.get("accent", "#1D9BF0")))
         return canvas
 
     # ----------------------------------------------------------------

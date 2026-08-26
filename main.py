@@ -48,7 +48,7 @@ class PhantasmPlugin(CommandsMixin, WebMixin, Star):
         self.http.configure(self.config.network)
 
         # 渲染与发送
-        self.renderer = CardRenderer(self.config, logger)
+        self.renderer = CardRenderer(self.config, logger, store_dir=self.data_dir)
         self.renderer.set_downloader(self.http.get_bytes)
         self.sender = Sender(context, self.config, logger)
 
@@ -86,6 +86,9 @@ class PhantasmPlugin(CommandsMixin, WebMixin, Star):
     async def initialize(self) -> None:
         """插件被加载后调用：按最新配置重建网络/渲染参数并（如启用）启动轮询。"""
         self.http.configure(self.config.network)
+        # 确保中文字体可用（缺省时自动下载 Noto Sans CJK，避免渲染出方框）
+        await self.renderer.ensure_font(
+            self.data_dir, lambda url: self.http.get_bytes(url, timeout=180))
         self.storage.prune_if_needed(self.config.storage.get("history_limit"))
         if self.config.enabled:
             self.poller.start()

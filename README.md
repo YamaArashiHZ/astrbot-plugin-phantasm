@@ -23,6 +23,12 @@ Phantasm 是一款面向 **AstrBot** 的发帖监听插件：它会定时检查�
 | 设置页 | 插件自带 Web 设置页（凭据脱敏，不回显明文） |
 | 容错 | 代理、超时、重试、错误分类；单账号失败不影响整体 |
 
+> **监听范围（Bilibili）**：插件监听的是用户的**动态流**（`feed/space`），覆盖 B 站的**动态**
+> 与**投稿**——UP 主发布新视频时，B 站会自动生成一条「视频动态」（`DYNAMIC_TYPE_AV`），
+> 因此**新视频投稿也会被监听到**并渲染成视频卡（含封面/标题/播放量/时长）。但它不是独立监听
+> 「投稿列表」接口，而是从动态流捕获。若某条投稿未生成动态（个别情况），则不会触发。
+> **X/Twitter** 监听的是推文（`tweets`），含普通推文/转发。
+
 ## 环境要求
 
 - AstrBot `>=4.16,<5`，`aiocqhttp`（OneBot v11）平台
@@ -31,8 +37,12 @@ Phantasm 是一款面向 **AstrBot** 的发帖监听插件：它会定时检查�
 - X/Twitter：一个官方 API v2 的 **Bearer Token**（App-only token 即可读取公开推文）
 
 > 说明：本插件为了「开箱即用 + 美观通用」默认使用 Pillow 直接绘制卡片，因此需要额外安装
-> `Pillow`。若你的环境没有中文字体，需通过 `render.font_path` 指定一个支持中文的 TTF/TTC
-> （例如 Windows 的 `C:/Windows/Fonts/msyh.ttc`，Linux 的 `NotoSansCJK`）。
+> `Pillow`。关于**中文字体**：
+> - 若容器（Linux/Docker）里**没有任何中文字体**，插件会在首次渲染前**自动下载一份
+>   **Noto Sans CJK SC**（OFL 许可，约 16MB）到插件数据目录 `fonts/`，中文即可正常显示。
+> - 若不想/不能联网下载，可：把 `.ttf/.otf` 放进插件 **data 目录的 `fonts/`**（如
+>   `data/plugin_data/astrbot_plugin_phantasm/fonts/`），或设 `render.font_path` 指向该字体
+>   （Windows 可用 `C:/Windows/Fonts/msyh.ttc`，Linux 用 `NotoSansCJK-Regular.otf`）。
 
 ## 安装
 
@@ -93,6 +103,7 @@ data/plugin_data/astrbot_plugin_phantasm/config.json
   "send": {
     "caption_format": "{platform} · {author} · {time}", // 卡片附带的文字说明模板
     "send_caption": true,              // 是否附带文字说明
+    "link_to_post": true,              // 在说明末尾附上原贴链接（QQ 内可点击）；卡片底部也会显示原帖
     "media_max": 4,                    // 单帖最多渲染图片数
     "max_jobs_per_account": 10,        // 每账号每轮最多投递新帖数
     "send_text_when_no_media": true
@@ -235,7 +246,8 @@ data/plugin_data/astrbot_plugin_phantasm/
   （`mode=scrape`）官方不支持，也**未实现**，会明确提示使用 `mode=api`。
 - **emoji**：Pillow 无法渲染彩色 emoji。默认 `render.emoji_mode=strip` 移除；如需保留可改 `keep`，
   但可能显示为方框（取决于字体）。
-- **中文字体**：Linux/Docker 环境常缺中文字体，需设置 `render.font_path`，否则中文可能显示为方框。
+- **中文字体**：Linux/Docker 环境常缺中文字体。插件会在首次渲染前**自动下载 Noto Sans CJK SC**
+  到插件 data 目录 `fonts/`；也可设 `render.font_path` 或手动放字体，否则中文显示为方框。
 - **主动投递平台支持**：`context.send_message` 不支持所有平台（如 QQ 官方 API 平台不支持）。当前
   以 `aiocqhttp`（OneBot v11）为主，其它平台请先用 `/phantasm list` 确认目标能否命中运行中的平台。
 - **单进程约束**：轮询任务运行于插件所在 AstrBot 进程；多实例/重启后以当前配置为准。
