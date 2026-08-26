@@ -159,7 +159,7 @@ class BilibiliFetcher(BaseFetcher):
             dtype = str(item.get("type") or "")
 
             desc = dyn_mod.get("desc") or {}
-            content_text = self._extract_desc_text(desc)
+            content_text = self._extract_content(dyn_mod)
 
             media, title, source, card_stats, duration_text = self._extract_media(dtype, dyn_mod)
 
@@ -184,8 +184,7 @@ class BilibiliFetcher(BaseFetcher):
                 om = orig.get("modules") or {}
                 o_author = (om.get("module_author") or {}).get("name") or ""
                 o_dyn = om.get("module_dynamic") or {}
-                o_desc = (o_dyn.get("desc") or {}) or {}
-                o_content = self._extract_desc_text(o_desc)
+                o_content = self._extract_content(o_dyn)
                 o_media, o_title, _o_src, _o_cs, _o_dur = self._extract_media(str(orig.get("type") or ""), o_dyn)
                 orig_author, orig_content, orig_media = o_author, o_content, list(o_media)
                 extra["orig_author"] = orig_author
@@ -203,6 +202,17 @@ class BilibiliFetcher(BaseFetcher):
             account_name = self.account.name
             if author_name and author_name != self.account.account_id:
                 account_name = author_name
+
+            # 诊断：有图但正文为空，打印结构与 desc 片段，便于定位特殊 type 的文本字段
+            if not content_text and media:
+                try:
+                    import json as _json
+                    self.logger.warning(
+                        f"[bilibili:{post_id}] 有图但未提取到正文 type={dtype} "
+                        f"desc={_json.dumps(desc, ensure_ascii=False)[:160]!r} "
+                        f"major={_json.dumps(dyn_mod.get('major'), ensure_ascii=False)[:160]!r}")
+                except Exception:
+                    pass
 
             return Post(
                 platform="bilibili",
@@ -241,6 +251,47 @@ class BilibiliFetcher(BaseFetcher):
         if nodes:
             joined = "".join(str(n.get("text") or "") for n in nodes if isinstance(n, dict))
             return sanitize_text(joined, emoji_mode=emoji_mode)
+        return ""
+
+    def _extract_content(self, dyn_mod: dict) -> str:
+        """尽力从动态结构中提取正文，依次：desc → major 标题/摘要 → 递归文本字段。"""
+        if not dyn_mod:
+            return ""
+        # 1) desc.text / rich_text_nodes
+        t = self._extract_desc_text(dyn_mod.get("desc") or {})
+        if t:
+            return t
+        # 2) major 里的标题/摘要（视频/文章/音乐等）
+        major = dyn_mod.get("major") or {}
+        emoji_mode = self.config.render.get("emoji_mode", "strip")
+        if isinstance(major, dict):
+            for key in ("archive", "pgc", "article", "music", "common", "opus", "courses"):
+                obj = major.get(key)
+                if isinstance(obj, dict):
+                    for f in ("title", "desc", "summary", "subtitle", "introduction"):
+                        v = obj.get(f)
+                        if isinstance(v, str) and v.strip() and len(v.strip()) > 1:
+                            return sanitize_text(v, emoji_mode=emoji_mode)
+        # 3) 递归兜底：找一个较长的 text/title/summary/desc 字段
+        return self._search_text(dyn_mod, emoji_mode)
+
+    def _search_text(self, obj, emoji_mode: str, depth: int = 0) -> str:
+        if depth > 5:
+            return ""
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                if k in ("text", "title", "summary", "content") and isinstance(v, str) \
+                        and len(v.strip()) >= 2:
+                    return sanitize_text(v, emoji_mode=emoji_mode)
+            for v in obj.values():
+                r = self._search_text(v, emoji_mode, depth + 1)
+                if r:
+                    return r
+        elif isinstance(obj, list):
+            for v in obj:
+                r = self._search_text(v, emoji_mode, depth + 1)
+                if r:
+                    return r
         return ""
 
     def _extract_media(self, dtype: str, dyn_mod: dict) -> tuple[list[str], str, str, dict[str, int], str]:
