@@ -1,0 +1,6 @@
+# Phantasm 依赖
+# AstrBot 运行环境一般已内置 httpx，这里显式声明便于独立测试。
+httpx>=0.27.0
+Pillow>=10.0.0
+# 可选：图片代理下载时可能用到，非必需
+# playwright  # 若使用 render.backend=html 需要：pip install playwright && playwright install chromium

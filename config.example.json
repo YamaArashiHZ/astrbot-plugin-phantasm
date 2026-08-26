@@ -1,0 +1,94 @@
+{
+  "enabled": true,
+  "poll_interval_seconds": 300,
+  "poll_jitter_seconds": 10,
+  "log_level": "INFO",
+  "image": {
+    "output_mode": "keep",
+    "dir": "cards",
+    "format": "png",
+    "aspect_ratio": "1:1",
+    "corner_radius": 24
+  },
+  "render": {
+    "backend": "pillow",
+    "font_path": "",
+    "font_size_scale": 1.0,
+    "emoji_mode": "strip",
+    "name_color": "#000000",
+    "handle_color": "#536471",
+    "verified_badge": true,
+    "theme": {
+      "bilibili": {
+        "primary": "#FB7299",
+        "background": "#FFFFFF",
+        "text": "#18191C",
+        "subtext": "#9499A0",
+        "accent": "#00AEEC"
+      },
+      "x": {
+        "primary": "#000000",
+        "background": "#FFFFFF",
+        "text": "#0F1419",
+        "subtext": "#536471",
+        "accent": "#1D9BF0"
+      }
+    }
+  },
+  "send": {
+    "caption_format": "{platform} · {author} · {time}",
+    "send_caption": true,
+    "media_max": 4,
+    "max_jobs_per_account": 10,
+    "send_text_when_no_media": true
+  },
+  "network": {
+    "proxy_enabled": false,
+    "proxy": "http://127.0.0.1:7897",
+    "timeout_seconds": 15,
+    "connect_timeout_seconds": 8,
+    "max_retries": 3,
+    "retry_backoff_base": 1.5,
+    "max_concurrency": 3,
+    "http_referer": ""
+  },
+  "credentials": {
+    "bilibili": {
+      "cookie": "",
+      "enable_risk_control_retry": true
+    },
+    "x": {
+      "mode": "api",
+      "bearer_token": "",
+      "api_key": "",
+      "api_secret": "",
+      "access_token": "",
+      "access_token_secret": ""
+    }
+  },
+  "storage": {
+    "history_limit": 5000,
+    "prune_on_load": true
+  },
+  "accounts": [
+    {
+      "platform": "bilibili",
+      "account_id": "2",
+      "display_name": "",
+      "enabled": true,
+      "targets": [
+        { "type": "group", "id": "123456789" },
+        { "type": "private", "id": "987654321" }
+      ]
+    },
+    {
+      "platform": "x",
+      "account_id": "some_screen_name",
+      "display_name": "",
+      "enabled": true,
+      "targets": [
+        { "type": "group", "id": "123456789" }
+      ]
+    }
+  ]
+}

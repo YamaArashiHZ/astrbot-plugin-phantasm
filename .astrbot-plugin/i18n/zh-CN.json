@@ -1,0 +1,13 @@
+{
+  "metadata": {
+    "display_name": "Phantasm",
+    "short_desc": "Bilibili / X 发帖监听与平台风格卡片投递",
+    "desc": "监听 Bilibili 动态与 X/Twitter 推文，把新帖渲染成对应平台风格的卡片图片，并自动投递到配置的 QQ 群聊或私聊。支持 REST API 抓取、已处理帖子去重、按账号独立配置投递目标、/phantasm 管理命令与插件设置页"
+  },
+  "pages": {
+    "settings": {
+      "title": "设置",
+      "description": "管理 Phantasm 的轮询、平台凭据、渲染主题、投递目标与账号订阅"
+    }
+  }
+}

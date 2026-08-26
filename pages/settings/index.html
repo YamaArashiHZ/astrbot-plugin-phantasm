@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Phantasm · 设置</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <span class="brand-icon"><img src="./logo.png" alt="" /></span>
+        <span class="brand-text">Phantasm</span>
+      </div>
+      <nav class="nav">
+        <button type="button" class="nav-item active" data-view="settings">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/>
+          </svg>
+          <span class="nav-text">设置</span>
+        </button>
+        <button type="button" class="nav-item" data-view="status">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>
+          </svg>
+          <span class="nav-text">状态</span>
+        </button>
+        <button type="button" class="nav-item" data-view="about">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+          </svg>
+          <span class="nav-text">详情</span>
+        </button>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <!-- ========== 设置视图 ========== -->
+      <section id="view-settings" class="view active">
+        <header class="page-head">
+          <div class="page-head-text">
+            <h1>设置</h1>
+            <p>监听 Bilibili 动态与 X/Twitter 推文，卡片化并自动投递</p>
+          </div>
+          <div class="stat-pill" id="stat-pill">
+            <span class="dot" id="stat-dot"></span>
+            <span id="stat-text">加载中…</span>
+          </div>
+        </header>
+
+        <section class="card">
+          <div class="card-head"><h2>全局</h2></div>
+          <div class="card-body">
+            <div class="grid-2">
+              <label class="field">
+                <span class="label">轮询间隔（秒）</span>
+                <input type="number" id="poll_interval_seconds" min="5" />
+              </label>
+              <label class="field">
+                <span class="label">轮询抖动（秒）</span>
+                <input type="number" id="poll_jitter_seconds" min="0" />
+              </label>
+            </div>
+            <div class="field switch-line">
+              <span class="label">启用插件（开始轮询）</span>
+              <input type="checkbox" class="switch" id="enabled" />
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head"><h2>平台凭据</h2><p>仅保存在本地配置，日志/页面不回显明文</p></div>
+          <div class="card-body">
+            <label class="field">
+              <span class="label">Bilibili Cookie</span>
+              <input type="password" id="bili_cookie" autocomplete="off" placeholder="至少含 buvid3/buvid4；建议含 SESSDATA" />
+              <span class="hint">留空/掩码 = 保留原值。含 SESSDATA 可降低风控。</span>
+            </label>
+            <label class="field">
+              <span class="label">X Bearer Token</span>
+              <input type="password" id="x_bearer" autocomplete="off" placeholder="官方 API v2 Bearer Token" />
+            </label>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head"><h2>渲染</h2></div>
+          <div class="card-body">
+            <div class="grid-2">
+              <label class="field">
+                <span class="label">媒体宽高比</span>
+                <select id="aspect_ratio">
+                  <option value="1:1">1:1 正方形</option>
+                  <option value="4:3">4:3</option>
+                  <option value="16:9">16:9</option>
+                  <option value="3:4">3:4</option>
+                </select>
+              </label>
+              <label class="field">
+                <span class="label">圆角半径</span>
+                <input type="number" id="corner_radius" min="0" max="48" />
+              </label>
+            </div>
+            <div class="grid-2">
+              <label class="field">
+                <span class="label">emoji 处理</span>
+                <select id="emoji_mode">
+                  <option value="strip">移除 emoji（推荐，避免豆腐块）</option>
+                  <option value="keep">保留（交给字体渲染）</option>
+                </select>
+              </label>
+              <label class="field">
+                <span class="label">中文字体路径（可留空自动）</span>
+                <input type="text" id="font_path" placeholder="C:/Windows/Fonts/msyh.ttc" />
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head"><h2>投递</h2></div>
+          <div class="card-body">
+            <div class="grid-2">
+              <label class="field">
+                <span class="label">文字说明模板</span>
+                <input type="text" id="caption_format" placeholder="{platform} · {author} · {time}" />
+              </label>
+              <label class="field">
+                <span class="label">每账号每轮最多投递帖数</span>
+                <input type="number" id="max_jobs_per_account" min="1" />
+              </label>
+            </div>
+            <div class="field switch-line">
+              <span class="label">发送文字说明</span>
+              <input type="checkbox" class="switch" id="send_caption" />
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head"><h2>网络</h2></div>
+          <div class="card-body">
+            <div class="grid-2">
+              <label class="field">
+                <span class="label">代理地址</span>
+                <input type="text" id="proxy" placeholder="http://127.0.0.1:7897" />
+              </label>
+              <div class="field switch-line">
+                <span class="label">启用代理</span>
+                <input type="checkbox" class="switch" id="proxy_enabled" />
+              </div>
+            </div>
+            <div class="grid-2">
+              <label class="field"><span class="label">请求超时（秒）</span><input type="number" id="timeout_seconds" min="5" /></label>
+              <label class="field"><span class="label">最大并发</span><input type="number" id="max_concurrency" min="1" max="20" /></label>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head"><h2>账号订阅</h2><p>每个账号可独立配置投递目标</p></div>
+          <div class="card-body" id="accounts-box">
+            <div class="empty">加载中…</div>
+          </div>
+        </section>
+
+        <div class="save-area">
+          <span class="save-tip" id="save-tip">修改完成后请保存</span>
+          <button class="btn primary" id="btn-save">保存配置</button>
+        </div>
+      </section>
+
+      <!-- ========== 状态视图 ========== -->
+      <section id="view-status" class="view">
+        <header class="page-head">
+          <div class="page-head-text"><h1>状态</h1><p>轮询运行情况与已处理记录</p></div>
+          <div class="page-head-actions">
+            <button class="btn ghost" id="btn-check">立即检查</button>
+            <button class="btn danger" id="btn-clear">清空记录</button>
+          </div>
+        </header>
+        <section class="card"><div class="card-body" id="status-detail">加载中…</div></section>
+        <section class="card"><div class="card-head"><h2>近期生成的卡片</h2></div><div class="card-body" id="cards-list"><div class="empty">加载中…</div></div></section>
+      </section>
+
+      <!-- ========== 详情视图 ========== -->
+      <section id="view-about" class="view">
+        <header class="page-head"><div class="page-head-text"><h1>详情</h1><p>Phantasm 插件信息</p></div></header>
+        <section class="card"><div class="card-body info-grid" id="about-info">加载中…</div></section>
+        <section class="card"><div class="card-body tips">
+          <ul>
+            <li>命令：<code>/phantasm</code>、<code>/phantasm check</code>、<code>/phantasm list</code>、<code>/phantasm add|del|target</code></li>
+            <li>B站抓取用 Cookie；X 用官方 API v2 Bearer Token。详见 README。</li>
+            <li>长文本/多图自适应；emoji 默认移除以避免 font 渲染出豆腐块。</li>
+          </ul>
+        </div></section>
+      </section>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
