@@ -113,19 +113,27 @@ class BilibiliFetcher(BaseFetcher):
 
     async def _fetch_detail_desc(self, post_id: str) -> str:
         """从动态详情接口取正文（feed 里 desc 为空的图文动态）。"""
+        detail = await self._fetch_detail_raw(post_id)
+        dyn = ((detail.get("item") or {}).get("modules") or {}).get("module_dynamic") or {}
+        return self._extract_content(dyn)
+
+    async def _fetch_detail_raw(self, post_id: str) -> dict:
+        """返回动态详情接口的原始 data 对象（调试 / 正文补齐用）。"""
         cookie = await self._build_cookie()
         if not cookie:
-            return ""
+            return {}
         url = f"https://api.bilibili.com/x/polymer/web-dynamic/v1/detail?id={post_id}&timezone_offset=-480"
         try:
             data = await self.http.get_json(url, headers=self._headers(cookie))
         except Exception:  # noqa: BLE001
-            return ""
+            return {}
         if data.get("code") != 0:
-            return ""
-        item = (data.get("data") or {}).get("item") or {}
-        dyn = (item.get("modules") or {}).get("module_dynamic") or {}
-        return self._extract_content(dyn)
+            return {}
+        return data.get("data") or {}
+
+    async def fetch_detail(self, post_id: str) -> dict:
+        """供调试命令使用：返回某动态的完整原始 data（含 item）。"""
+        return await self._fetch_detail_raw(post_id)
 
     async def fetch_raw(self, limit: int = 5) -> list:
         """返回最近动态的原始 item 字典列表（调试用，不解析）。"""

@@ -153,6 +153,16 @@ class CommandsMixin:
             for i, item in enumerate(raw):
                 self.logger.info(f"phan_raw #{i}: {_json.dumps(item, ensure_ascii=False)}")
             self.logger.info("phan_raw 结束")
+            # 额外抓取【详情接口】原始响应并写日志（phan_detail），用于定位 feed 缺失的图文正文
+            latest_id = (raw[0].get("id_str") or "") if isinstance(raw[0], dict) else ""
+            if latest_id and hasattr(fetcher, "fetch_detail"):
+                try:
+                    detail = await fetcher.fetch_detail(latest_id)
+                    self.logger.info(
+                        f"phan_detail [{platform}:{account_id}] id={latest_id}: "
+                        f"{_json.dumps(detail, ensure_ascii=False)}")
+                except Exception as e:  # noqa: BLE001
+                    self.logger.warning(f"phan_detail 抓取失败 id={latest_id}：{e}")
         else:
             self.logger.info(f"phan_raw 未取到原始数据 [{platform}:{account_id}]")
 
