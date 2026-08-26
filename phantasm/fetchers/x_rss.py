@@ -49,9 +49,15 @@ class XRssFetcher(BaseFetcher):
         try:
             buf = await self.http.get_bytes(url, headers={"User-Agent": UA})
         except FetchError as e:
-            return self.err_result(f"RSS 抓取失败：{e}")
+            return self.err_result(
+                f"RSS 抓取失败：{e}（请确认 RSSHub 实例可达且支持 twitter/user 路由）")
 
         xml = buf.decode("utf-8", errors="ignore")
+        if "<rss" not in xml.lower() and "<feed" not in xml.lower():
+            return self.err_result(
+                f"实例 {rss_base} 未返回 RSS（可能 404/被限流，或该实例不支持 twitter/user 路由）。"
+                f"请换可达实例或自建 RSSHub。")
+
         posts = self._parse_rss(xml, screen)
         posts.sort(key=lambda p: p.created_ts, reverse=True)
         return FetchResult(posts=posts[:limit], total=len(posts))
