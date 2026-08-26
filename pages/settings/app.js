@@ -134,7 +134,7 @@ function renderAccounts() {
       renderAccounts();
     });
   });
-  box.querySelectorAll("[data-tf]").forEach((btn) => {
+  box.querySelectorAll(".target-form button[data-tf]").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       const i = +btn.dataset.i;
       if (btn.dataset.tf === "ok") confirmAddTarget(i);
@@ -147,12 +147,12 @@ function renderTargetForm(i) {
   return `
     <div class="target-form">
       <div class="tf-row">
-        <select data-tf="type" id="tf_type_${i}">
+        <select id="tf_type_${i}">
           <option value="group">群聊</option>
           <option value="private">私聊</option>
           <option value="umo">UMO（直接填 unified_msg_origin）</option>
         </select>
-        <input data-tf="id" id="tf_id_${i}" placeholder="群号 / QQ号 / UMO 字符串"/>
+        <input id="tf_id_${i}" placeholder="群号 / QQ号 / UMO 字符串"/>
       </div>
       <div class="tf-row" style="justify-content:flex-end">
         <button class="btn ghost small" data-tf="cancel" data-i="${i}">取消</button>
@@ -282,11 +282,11 @@ function initSmoothWheelScroll() {
     if (!frame) target = content.scrollTop;
   }, { passive: true });
   content.addEventListener("wheel", (e) => {
-    // 文本框/下拉内部滚动不拦截
-    if (e.ctrlKey || e.target.closest("select, input, textarea, .target-form")) return;
+    // 只放行可滚动文本域；普通输入框/下拉滚轮交给页面平滑滚动
+    if (e.ctrlKey || e.target.closest("textarea")) return;
     const max = content.scrollHeight - content.clientHeight;
     if (max <= 0) return;
-    const delta = e.deltaMode === 1 ? e.deltaY * 32 : e.deltaMode === 2 ? e.deltaY * content.clientHeight : e.deltaY;
+    const delta = e.deltaMode === 2 ? e.deltaY * content.clientHeight : e.deltaY;
     target = Math.max(0, Math.min(max, target + delta));
     e.preventDefault();
     if (!frame) frame = requestAnimationFrame(tick);
