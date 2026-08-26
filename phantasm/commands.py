@@ -185,7 +185,7 @@ class CommandsMixin:
                     self.poller._render_dir())
                 yield event.image_result(card)
                 yield event.plain_result(
-                    msg + f"\n上方卡片为最新一条：正文{'已提取' if post.content else '为空（feed 可能无 desc，已尝试 detail 补充）'}"
+                    msg + f"\n上方卡片为最新一条：正文{'已提取' if post.content else '为空（feed 无 desc，已尝试 OPUS 网页补充）'}"
                     + (f"；正文={preview!r}" if preview else ""))
             except Exception as e:  # noqa: BLE001
                 yield event.plain_result(msg + f"\n（渲染失败：{e}）")

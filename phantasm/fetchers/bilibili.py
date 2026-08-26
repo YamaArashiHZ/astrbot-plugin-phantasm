@@ -97,11 +97,12 @@ class BilibiliFetcher(BaseFetcher):
         posts = [p for p in (self._parse_item(it, account_id) for it in items) if p is not None]
         posts.sort(key=lambda p: p.created_ts, reverse=True)
         # B 站 feed 对部分图文（OPUS）动态不返回 desc（正文为空但有图），此时从
-        # opus-detail 页面（t.bilibili.com/{id}）的 __INITIAL_STATE__ 补标题与正文。
-        # 只补前 3 条，避免批量请求触发风控。
-        filled = 0
+        # www.bilibili.com/opus/{id} 页面的 __INITIAL_STATE__ 补标题与正文。
+        # 最多尝试前 3 条，避免批量请求触发风控。
+        attempted = 0
         for p in posts:
-            if not p.content and p.media_urls and filled < 3:
+            if not p.content and p.media_urls and attempted < 3:
+                attempted += 1
                 try:
                     title, body = await self._fetch_opus_content(p.post_id)
                     if title or body:
@@ -109,19 +110,21 @@ class BilibiliFetcher(BaseFetcher):
                         if title:
                             p.extra["title"] = title
                         p.extra["content_from_opus"] = True
-                        filled += 1
                 except Exception:  # noqa: BLE001
                     pass
+                if not p.content:
+                    self.logger.warning(
+                        f"[bilibili:{p.post_id}] feed 无正文且 OPUS 网页回退仍未提取到内容")
         return FetchResult(posts=posts[:limit], total=len(posts))
 
     async def _fetch_opus_content(self, post_id: str) -> tuple[str, str]:
-        """从 opus-detail 页面（t.bilibili.com/{id}）的 __INITIAL_STATE__ 取标题与正文。
+        """从 OPUS 页面（www.bilibili.com/opus/{id}）的 __INITIAL_STATE__ 取标题与正文。
 
-        B 站的 feed/detail JSON 接口对图文（OPUS）动态返回 desc:null，但网页端会把
+        B 站的 feed/detail JSON 接口对图文（OPUS）动态返回 desc:null，但 OPUS 网页会把
         完整内容内嵌在 HTML 的 ``window.__INITIAL_STATE__`` 里，这里回退抓取解析。
         """
         cookie = await self._build_cookie()
-        url = f"https://t.bilibili.com/{post_id}"
+        url = f"https://www.bilibili.com/opus/{post_id}"
         headers = {"User-Agent": UA, "Referer": url}
         if cookie:
             headers["Cookie"] = cookie
