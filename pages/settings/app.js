@@ -1,16 +1,21 @@
 const bridge = window.AstrBotPluginPage;
 const $ = (id) => document.getElementById(id);
 
-let accounts = [];   // 当前编辑中的账号列表（含 targets）
+let accounts = [];          // 当前编辑中的账号列表（含 targets）
 let toastTimer = null;
+let addingTarget = -1;      // 正在添加目标的账号下标；-1 表示不显示表单
+let confirmResolve = null;  // 自绘确认弹窗的 Promise 回调
 
 function toast(msg) {
   const el = $("toast");
+  if (!el) return;
   el.textContent = msg;
   el.classList.add("show");
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove("show"), 2600);
 }
+
+function esc(s) { return String(s ?? "").replace(/[&<>"]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 
 function numVal(id, def) {
   const v = parseInt($(id)?.value, 10);
@@ -72,65 +77,122 @@ function collect() {
 }
 
 // ---------- 账号管理 ----------
-function renderAccounts() {
-  const box = $("accounts-box");
-  if (!accounts.length) {
-    box.innerHTML = '<div class="empty">尚未订阅账号，可在此添加</div>';
-  } else {
-    box.innerHTML = '<div class="accounts-grid">' + accounts.map((a, i) => `
-      <div class="account-card">
-        <div class="ac-head">
-          <span class="ac-title">${esc(a.name || a.account_id)}</span>
-          <span class="ac-badge">${esc(a.platform)}</span>
-        </div>
-        <div class="ac-targets">ID：${esc(a.account_id)}<br>投递：${esc(targetsText(a))}</div>
-        <div class="ac-actions">
-          <button class="btn ghost small" data-act="toggle" data-i="${i}">${a.enabled ? "停用" : "启用"}</button>
-          <button class="btn ghost small" data-act="target" data-i="${i}">加目标</button>
-          <button class="btn danger small" data-act="remove" data-i="${i}">删除</button>
-        </div>
-      </div>`).join("") + "</div>";
-  }
-  box.insertAdjacentHTML("beforeend", `
-    <div class="add-account" style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-      <select id="new_platform" style="padding:8px"><option value="bilibili">bilibili</option><option value="x">x</option></select>
-      <input id="new_account_id" placeholder="account_id / UID / screen_name" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:9px"/>
-      <input id="new_display_name" placeholder="可选 display_name" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:9px"/>
-      <button class="btn primary" id="btn-add-account">添加账号</button>
-    </div>`);
-  box.querySelector("#btn-add-account").addEventListener("click", addAccount);
-  box.querySelectorAll("[data-act]").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      const i = +btn.dataset.i;
-      const act = btn.dataset.act;
-      if (act === "remove") accounts.splice(i, 1);
-      else if (act === "toggle") accounts[i].enabled = !accounts[i].enabled;
-      else if (act === "target") addTarget(i);
-      renderAccounts();
-    });
-  });
-}
-function esc(s) { return String(s ?? "").replace(/[&<>"]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 function targetsText(a) {
   if (!a.targets.length) return "（无）";
   const label = { group: "群聊", private: "私聊", umo: "UMO" };
   return a.targets.map((t) => `${label[t.type] || t.type} ${t.id}`).join("、");
 }
+
+function renderAccounts() {
+  const box = $("accounts-box");
+  if (!box) return;
+  let html = "";
+  if (accounts.length) {
+    html += '<div class="accounts-grid">' + accounts.map((a, i) => {
+      const card = `
+        <div class="account-card">
+          <div class="ac-head">
+            <span class="ac-title">${esc(a.name || a.account_id)}</span>
+            <span class="ac-badge">${esc(a.platform)}</span>
+          </div>
+          <div class="ac-targets">ID：${esc(a.account_id)}<br>投递：${esc(targetsText(a))}</div>
+          <div class="ac-actions">
+            <button class="btn ghost small" data-act="toggle" data-i="${i}">${a.enabled ? "停用" : "启用"}</button>
+            <button class="btn ghost small" data-act="target" data-i="${i}">加目标</button>
+            <button class="btn danger small" data-act="remove" data-i="${i}">删除</button>
+          </div>
+        </div>`;
+      return card + (addingTarget === i ? renderTargetForm(i) : "");
+    }).join("") + "</div>";
+  } else {
+    html += '<div class="empty">尚未订阅账号，可在此添加</div>';
+  }
+  html += `
+    <div class="add-account" style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <select id="new_platform" style="padding:8px;border:1px solid var(--border);border-radius:9px"><option value="bilibili">bilibili</option><option value="x">x</option></select>
+      <input id="new_account_id" placeholder="account_id / UID / screen_name" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:9px"/>
+      <input id="new_display_name" placeholder="可选 display_name" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:9px"/>
+      <button class="btn primary" id="btn-add-account">添加账号</button>
+    </div>`;
+  box.innerHTML = html;
+
+  box.querySelector("#btn-add-account")?.addEventListener("click", addAccount);
+  box.querySelectorAll("[data-act]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      const i = +btn.dataset.i;
+      const act = btn.dataset.act;
+      if (act === "remove") {
+        accounts.splice(i, 1);
+        toast("已删除该账号（记得点保存生效）");
+        if (addingTarget === i) addingTarget = -1;
+      } else if (act === "toggle") {
+        accounts[i].enabled = !accounts[i].enabled;
+        toast(accounts[i].enabled ? "已启用该账号" : "已停用该账号");
+      } else if (act === "target") {
+        addingTarget = addingTarget === i ? -1 : i;
+      }
+      renderAccounts();
+    });
+  });
+  box.querySelectorAll("[data-tf]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      const i = +btn.dataset.i;
+      if (btn.dataset.tf === "ok") confirmAddTarget(i);
+      else { addingTarget = -1; renderAccounts(); }
+    });
+  });
+}
+
+function renderTargetForm(i) {
+  return `
+    <div class="target-form">
+      <div class="tf-row">
+        <select data-tf="type" id="tf_type_${i}">
+          <option value="group">群聊</option>
+          <option value="private">私聊</option>
+          <option value="umo">UMO（直接填 unified_msg_origin）</option>
+        </select>
+        <input data-tf="id" id="tf_id_${i}" placeholder="群号 / QQ号 / UMO 字符串"/>
+      </div>
+      <div class="tf-row" style="justify-content:flex-end">
+        <button class="btn ghost small" data-tf="cancel" data-i="${i}">取消</button>
+        <button class="btn primary small" data-tf="ok" data-i="${i}">添加</button>
+      </div>
+    </div>`;
+}
+
 function addAccount() {
   const platform = $("new_platform").value;
   const account_id = $("new_account_id").value.trim();
   const display_name = $("new_display_name").value.trim();
   if (!account_id) { toast("请填写 account_id"); return; }
   accounts.push({ platform, account_id, name: display_name, enabled: true, targets: [] });
+  toast(`已添加 ${platform}:${account_id}（点「保存配置」生效）`);
   renderAccounts();
 }
-function addTarget(i) {
-  const type = prompt("目标类型：group / private / umo", "group");
-  if (!type) return;
-  const id = prompt("目标 ID（群号 / QQ号 / UMO 字符串）", "");
-  if (!id) return;
-  accounts[i].targets.push({ type: type.trim().toLowerCase(), id: id.trim() });
+
+function confirmAddTarget(i) {
+  const type = $("tf_type_" + i).value;
+  const id = $("tf_id_" + i).value.trim();
+  if (!id) { toast("请填写目标 ID"); return; }
+  accounts[i].targets.push({ type, id });
+  addingTarget = -1;
+  toast("已添加投递目标（点「保存配置」生效）");
   renderAccounts();
+}
+
+// ---------- 自绘确认弹窗（原生 confirm 在 AstrBot iframe 中被禁用） ----------
+function confirmAction(message, mark = "!") {
+  return new Promise((resolve) => {
+    confirmResolve = resolve;
+    $("confirm-message").textContent = message;
+    $("confirm-mark").textContent = mark;
+    $("confirm-modal").classList.add("show");
+  });
+}
+function closeConfirm(val) {
+  $("confirm-modal").classList.remove("show");
+  if (confirmResolve) { confirmResolve(val); confirmResolve = null; }
 }
 
 // ---------- 加载/保存 ----------
@@ -148,7 +210,7 @@ async function saveConfig() {
     const payload = collect();
     const r = await bridge.apiPost("config/save", payload);
     if (r && r.saved) toast("配置已保存，正在生效");
-    else toast("保存失败");
+    else toast("保存失败（请重试）");
   } catch (e) {
     toast("保存失败：" + e);
   }
@@ -159,7 +221,7 @@ async function loadStatus() {
   try {
     const s = await bridge.apiGet("status");
     const dot = $("stat-dot");
-    dot.classList.toggle("on", !!s.running && s.enabled);
+    if (dot) dot.classList.toggle("on", !!s.running && s.enabled);
     $("stat-text").textContent = `${s.enabled ? "已启用" : "已暂停"} · 账号 ${s.account_count}`;
     const last = s.last_run ? new Date(s.last_run * 1000).toLocaleString() : "从未";
     $("status-detail").innerHTML = `
@@ -184,7 +246,8 @@ async function doCheck() {
   } catch (e) { toast("触发失败：" + e); }
 }
 async function doClear() {
-  if (!confirm("确认清空全部已处理记录？")) return;
+  const ok = await confirmAction("确认清空全部已处理记录？此操作不可撤销。");
+  if (!ok) return;
   const r = await bridge.apiPost("history/clear", {});
   toast(`已清空 ${r.cleared} 条记录`);
   loadStatus();
@@ -199,7 +262,7 @@ async function loadCards() {
   } catch (e) { $("cards-list").innerHTML = '<div class="empty">加载失败：' + esc(e) + "</div>"; }
 }
 
-// ---------- 导航/主题 ----------
+// ---------- 导航 ----------
 function setupNav() {
   document.querySelectorAll(".nav-item").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -219,6 +282,8 @@ async function init() {
   $("btn-save").addEventListener("click", saveConfig);
   $("btn-check").addEventListener("click", doCheck);
   $("btn-clear").addEventListener("click", doClear);
+  $("confirm-ok").addEventListener("click", () => closeConfirm(true));
+  $("confirm-cancel").addEventListener("click", () => closeConfirm(false));
   $("about-info").innerHTML = `
     <div class="info-item"><span class="info-label">名称</span><b>astrbot_plugin_phantasm</b></div>
     <div class="info-item"><span class="info-label">显示名</span><b>Phantasm</b></div>
