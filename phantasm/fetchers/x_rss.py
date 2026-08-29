@@ -18,6 +18,7 @@ import html as _h
 import logging
 import re
 import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from typing import Optional
 
@@ -143,7 +144,7 @@ class XRssFetcher(BaseFetcher):
             author_handle=f"@{screen}",
             author_avatar_url=channel_avatar,
             content=content,
-            created_at=pub[:25] or "",
+            created_at=self._format_cn(pub),
             created_ts=ts,
             media_urls=media_urls,
             stats={},
@@ -181,6 +182,18 @@ class XRssFetcher(BaseFetcher):
         if s.startswith("RT "):
             s = s[3:].lstrip()
         return s or text.strip()
+
+    @staticmethod
+    def _format_cn(pub: str) -> str:
+        """把 pubDate(GMT/UTC) 转成 UTC+8 的可读时间(卡片与文字都用它)。"""
+        ts = XRssFetcher._parse_pub(pub)
+        if ts <= 0:
+            return (pub or "").strip()[:25]
+        try:
+            dt = datetime.fromtimestamp(ts, tz=timezone(timedelta(hours=8)))
+            return dt.strftime("%Y-%m-%d %H:%M")
+        except Exception:  # noqa: BLE001
+            return (pub or "").strip()[:25]
 
     @staticmethod
     def _parse_pub(pub: str) -> float:
