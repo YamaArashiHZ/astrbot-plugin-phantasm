@@ -14,6 +14,7 @@
 """
 from __future__ import annotations
 
+import html as _h
 import logging
 import re
 import xml.etree.ElementTree as ET
@@ -99,11 +100,14 @@ class XRssFetcher(BaseFetcher):
         content = self._desc_to_content(desc, title)
 
         # 媒体图：从 description 里抽 img src + 视频海报(RSSHub 会用 <video poster=...>)
+        # 注意：URL 里可能是 HTML 实体(如 &amp;)，要先解码，否则下载 404
         media_urls: list[str] = []
         for u in _IMG_RE.findall(desc):
+            u = _h.unescape(u)
             if u.startswith("http") and u not in media_urls:
                 media_urls.append(u)
         for u in _VIDEO_POSTER_RE.findall(desc):
+            u = _h.unescape(u)
             if u.startswith("http") and u not in media_urls:
                 media_urls.append(u)
 
