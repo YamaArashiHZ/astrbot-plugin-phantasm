@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any, Optional
 
 from astrbot.api.event import MessageChain
@@ -25,11 +26,17 @@ _MSG_TYPE = {"group": "GroupMessage", "private": "FriendMessage", "friend": "Fri
 
 
 class Sender:
-    def __init__(self, context, config: ConfigManager, logger: logging.Logger):
+    def __init__(self, context, config: ConfigManager, logger: logging.Logger,
+                 downloader=None):
         self.context = context
         self.config = config
         self.logger = logger
         self.send_cfg = config.send
+        self._downloader = downloader
+
+    def set_downloader(self, fn) -> None:
+        """注入 ``async (url) -> bytes`` 下载器（用于附带原图）。"""
+        self._downloader = fn
 
     # ----------------------------------------------------------------
     async def send_post(self, post: Post, account: Account, card_path: str) -> tuple[int, int]:
@@ -48,6 +55,7 @@ class Sender:
                     fail += 1
                     continue
                 chain = self._build_chain(post, account, card_path, caption)
+                await self._append_media_chain(post, chain)
                 sent = await self.context.send_message(umo, chain)
                 if sent:
                     ok += 1
@@ -90,6 +98,29 @@ class Sender:
             chain.message(caption)
         chain.file_image(card_path)
         return chain
+
+    async def _append_media_chain(self, post, chain: MessageChain, tmp_dir=None) -> None:
+        """把帖子原始附图（best-effort）追加到同一条消息里。失败/无下载器则跳过。"""
+        if self._downloader is None:
+            return
+        urls = [u for u in (post.media_urls or []) if u][: int(self.send_cfg.get("media_max", 4))]
+        if not urls:
+            return
+        base = tmp_dir or self.config.data_dir
+        out_dir = Path(base) / "attachments"
+        try:
+            out_dir.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            return
+        for i, u in enumerate(urls):
+            try:
+                data = await self._downloader(u)
+                ext = "jpg"
+                p = out_dir / f"{post.post_id}_{i}.{ext}"
+                p.write_bytes(data)
+                chain.file_image(str(p))
+            except Exception:  # noqa: BLE001
+                continue
 
     def _resolve_umo(self, target: Target) -> Optional[str]:
         if target.is_umo:

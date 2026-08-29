@@ -148,8 +148,14 @@ class XRssFetcher(BaseFetcher):
             s = re.sub(r"\n\s*\n+", "\n", s)          # 折叠连续空行
             s = s.strip("\n").strip()
             if s:
-                return sanitize_text(s, emoji_mode="keep")
-        return sanitize_text(title_fallback, emoji_mode="keep")
+                return sanitize_text(XRssFetcher._strip_rt_prefix(s), emoji_mode="keep")
+        return sanitize_text(XRssFetcher._strip_rt_prefix(title_fallback), emoji_mode="keep")
+
+    @staticmethod
+    def _strip_rt_prefix(text: str) -> str:
+        """去掉转推前缀 `RT <名字>:`，避免卡片正文开头出现一串 RT 信息。"""
+        s = text.strip()
+        return re.sub(r"^RT\s+[^:：\n]{1,80}[:：]\s*", "", s) or s
 
     @staticmethod
     def _parse_pub(pub: str) -> float:

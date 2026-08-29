@@ -52,7 +52,7 @@ class PhantasmPlugin(CommandsMixin, WebMixin, Star):
         # 渲染与发送
         self.renderer = CardRenderer(self.config, logger, store_dir=self.data_dir)
         self.renderer.set_downloader(self.http.get_bytes)
-        self.sender = Sender(context, self.config, logger)
+        self.sender = Sender(context, self.config, logger, downloader=self.http.get_bytes)
 
         # 轮询调度
         self.poller = Poller(self.config, self.storage, self.http,

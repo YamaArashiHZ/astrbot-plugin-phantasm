@@ -287,8 +287,11 @@ class CommandsMixin:
         except Exception as e:  # noqa: BLE001
             yield event.plain_result(f"渲染失败：{e}")
             return
-        # 成功：只发图片，不加任何文字
-        yield event.image_result(card)
+        # 成功：和「检测到新帖」一致——一条消息打包发送 文字说明(含链接) + 卡片 + 附图
+        caption = self.sender._build_caption(post, acc)
+        chain = self.sender._build_chain(post, acc, card, caption)
+        await self.sender._append_media_chain(post, chain, self.poller._render_dir())
+        yield event.chain_result(chain)
 
     def _find_account(self, alias: str):
         for a in self.config.accounts():
