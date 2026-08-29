@@ -301,13 +301,20 @@ class CommandsMixin:
             sid = str(event.get_self_id()) if callable(getattr(event, "get_self_id", None)) else ""
         except Exception:  # noqa: BLE001
             sid = ""
-        att = await self.sender.build_attachment_forward(
-            post, self_id=sid, tmp_dir=self.poller._render_dir())
+        try:
+            att = await self.sender.build_attachment_forward(
+                post, self_id=sid, tmp_dir=self.poller._render_dir())
+        except Exception as e:  # noqa: BLE001
+            self.logger.warning(f"打包附图异常：{e}")
+            att = None
         if att is not None:
             try:
                 await event.send(att)
+                self.logger.info("[附图] 已发送合并转发")
             except Exception as e:  # noqa: BLE001
                 self.logger.warning(f"发送附图转发失败：{e}")
+        else:
+            self.logger.info("[附图] 未生成附图转发(见上方 [附图] 日志)")
 
     def _find_account(self, alias: str):
         for a in self.config.accounts():

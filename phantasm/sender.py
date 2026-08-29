@@ -109,21 +109,27 @@ class Sender:
 
         下载附图 -> 生成 ``Nodes`` 转发链；无附图 / 下载失败 / 缺 self_id 时返回 None。
         """
-        if self._downloader is None:
-            return None
         urls = [u for u in (post.media_urls or []) if u][: int(self.send_cfg.get("media_max", 4))]
-        if not urls:
-            return None
         sid = str(self_id or self.send_cfg.get("bot_self_id") or "").strip()
+        self.logger.info(
+            f"[附图] platform={post.platform} media_urls={len(post.media_urls or [])} "
+            f"可打包={len(urls)} self_id={sid!r} downloader={'有' if self._downloader else '无'}")
+        if self._downloader is None:
+            self.logger.warning("[附图] 无下载器，跳过")
+            return None
+        if not urls:
+            self.logger.info("[附图] 原贴无附图，跳过")
+            return None
         nm = str(bot_name or self.send_cfg.get("bot_nickname") or "").strip() or sid or "Phantasm"
         if not sid:
-            self.logger.warning("未配置 send.bot_self_id，无法打包附图转发消息")
+            self.logger.warning("[附图] self_id 为空(event.get_self_id 或 send.bot_self_id 都没取到)，跳过")
             return None
         base = tmp_dir or self.config.data_dir
         out_dir = Path(base) / "attachments"
         try:
             out_dir.mkdir(parents=True, exist_ok=True)
         except OSError:
+            self.logger.warning("[附图] 无法创建输出目录，跳过")
             return None
         paths: list[Path] = []
         for i, u in enumerate(urls):
@@ -132,13 +138,16 @@ class Sender:
                 p = out_dir / f"{post.post_id}_{i}.jpg"
                 p.write_bytes(data)
                 paths.append(p)
-            except Exception:  # noqa: BLE001
+            except Exception as e:  # noqa: BLE001
+                self.logger.warning(f"[附图] {u[:60]} 下载失败：{e}")
                 continue
         if not paths:
+            self.logger.warning("[附图] 附图全部下载失败")
             return None
         try:
             from astrbot.api.message_components import Image, Node, Nodes
             nodes = [Node(uin=sid, name=nm, content=[Image.fromFileSystem(str(p))]) for p in paths]
+            self.logger.info(f"[附图] 打包 {len(paths)} 张合并转发成功")
             return MessageChain(chain=[Nodes(nodes=nodes)])
         except Exception as e:  # noqa: BLE001
             self.logger.warning(f"打包附图转发失败，回退为多图消息：{e}")
