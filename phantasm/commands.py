@@ -291,7 +291,9 @@ class CommandsMixin:
         caption = self.sender._build_caption(post, acc)
         chain = self.sender._build_chain(post, acc, card, caption)
         await self.sender._append_media_chain(post, chain, self.poller._render_dir())
-        yield event.chain_result(chain)
+        # chain_result 需要【组件列表】，不是 MessageChain 对象
+        comps = getattr(chain, "chain", None) or getattr(chain, "items", [])
+        yield event.chain_result(comps)
 
     def _find_account(self, alias: str):
         for a in self.config.accounts():
