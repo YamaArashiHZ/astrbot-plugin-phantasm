@@ -153,9 +153,17 @@ class XRssFetcher(BaseFetcher):
 
     @staticmethod
     def _strip_rt_prefix(text: str) -> str:
-        """去掉转推前缀 `RT <名字>:`，避免卡片正文开头出现一串 RT 信息。"""
+        """去掉转推前缀，避免卡片正文开头出现一串 RT 信息。
+
+        兼容 ``RT @user:``、``RT 名字:``、``RT 名字``（无冒号）等形态。
+        """
         s = text.strip()
-        return re.sub(r"^RT\s+[^:：\n]{1,80}[:：]\s*", "", s) or s
+        # 去 "RT @user:" / "RT 名字:"（冒号形式，含中文/括号）
+        s = re.sub(r"^RT\s+@?[^:\n]{1,80}:\s*", "", s)
+        # 无冒号：去掉 "RT " 标记，保留原内容
+        if s.startswith("RT "):
+            s = s[3:].lstrip()
+        return s or text.strip()
 
     @staticmethod
     def _parse_pub(pub: str) -> float:

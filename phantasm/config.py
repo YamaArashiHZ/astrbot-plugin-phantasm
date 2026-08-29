@@ -71,6 +71,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "max_jobs_per_account": 10,
         "send_text_when_no_media": True,
         "cd_view_seconds": 60,         # /视奸 的全局冷却（秒），避免频繁请求
+        "bot_self_id": "",             # 附图打包转发的 bot QQ号（uin）；空则 /视奸 用 event.get_self_id()
+        "bot_nickname": "",            # 附图打包转发的显示名（空则用 bot_self_id）
     },
     "network": {
         "proxy_enabled": False,

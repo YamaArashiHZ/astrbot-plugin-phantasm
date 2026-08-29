@@ -287,13 +287,20 @@ class CommandsMixin:
         except Exception as e:  # noqa: BLE001
             yield event.plain_result(f"渲染失败：{e}")
             return
-        # 成功：和「检测到新帖」一致——一条消息打包发送 文字说明(含链接) + 卡片 + 附图
+        # 成功：和「检测到新帖」一致——先发一条：文字说明(含链接)+卡片；再单独打包附图
         caption = self.sender._build_caption(post, acc)
         chain = self.sender._build_chain(post, acc, card, caption)
-        await self.sender._append_media_chain(post, chain, self.poller._render_dir())
         # chain_result 需要【组件列表】，不是 MessageChain 对象
-        comps = getattr(chain, "chain", None) or getattr(chain, "items", [])
-        yield event.chain_result(comps)
+        yield event.chain_result(getattr(chain, "chain", None) or getattr(chain, "items", []))
+        # 附图：单独打包成一条合并转发消息
+        try:
+            sid = str(event.get_self_id()) if callable(getattr(event, "get_self_id", None)) else ""
+        except Exception:  # noqa: BLE001
+            sid = ""
+        att = await self.sender.build_attachment_forward(
+            post, self_id=sid, tmp_dir=self.poller._render_dir())
+        if att is not None:
+            yield event.chain_result(getattr(att, "chain", None) or getattr(att, "items", []))
 
     def _find_account(self, alias: str):
         for a in self.config.accounts():

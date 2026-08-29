@@ -54,9 +54,13 @@ class Sender:
                     self.logger.warning(f"[{post.kebab_id}] 目标 {target.describe()} 无法解析 UMO，跳过")
                     fail += 1
                     continue
+                # 1) 一条消息：卡片（+ 文字说明）
                 chain = self._build_chain(post, account, card_path, caption)
-                await self._append_media_chain(post, chain)
                 sent = await self.context.send_message(umo, chain)
+                # 2) 一条消息：附图打包（合并转发）
+                att = await self.build_attachment_forward(post)
+                if att is not None:
+                    await self.context.send_message(umo, att)
                 if sent:
                     ok += 1
                     self.logger.info(f"[{post.kebab_id}] 已投递到 {target.describe()} ({umo})")
@@ -99,28 +103,49 @@ class Sender:
         chain.file_image(card_path)
         return chain
 
-    async def _append_media_chain(self, post, chain: MessageChain, tmp_dir=None) -> None:
-        """把帖子原始附图（best-effort）追加到同一条消息里。失败/无下载器则跳过。"""
+    async def build_attachment_forward(self, post, self_id=None, bot_name=None,
+                                       tmp_dir=None) -> Optional[MessageChain]:
+        """把帖子原始附图打包成一条「合并转发」消息（参考 pixiv_sender 的 Nodes 方式）。
+
+        下载附图 -> 生成 ``Nodes`` 转发链；无附图 / 下载失败 / 缺 self_id 时返回 None。
+        """
         if self._downloader is None:
-            return
+            return None
         urls = [u for u in (post.media_urls or []) if u][: int(self.send_cfg.get("media_max", 4))]
         if not urls:
-            return
+            return None
+        sid = str(self_id or self.send_cfg.get("bot_self_id") or "").strip()
+        nm = str(bot_name or self.send_cfg.get("bot_nickname") or "").strip() or sid or "Phantasm"
+        if not sid:
+            self.logger.warning("未配置 send.bot_self_id，无法打包附图转发消息")
+            return None
         base = tmp_dir or self.config.data_dir
         out_dir = Path(base) / "attachments"
         try:
             out_dir.mkdir(parents=True, exist_ok=True)
         except OSError:
-            return
+            return None
+        paths: list[Path] = []
         for i, u in enumerate(urls):
             try:
                 data = await self._downloader(u)
-                ext = "jpg"
-                p = out_dir / f"{post.post_id}_{i}.{ext}"
+                p = out_dir / f"{post.post_id}_{i}.jpg"
                 p.write_bytes(data)
-                chain.file_image(str(p))
+                paths.append(p)
             except Exception:  # noqa: BLE001
                 continue
+        if not paths:
+            return None
+        try:
+            from astrbot.api.message_components import Image, Node, Nodes
+            nodes = [Node(uin=sid, name=nm, content=[Image.fromFileSystem(str(p))]) for p in paths]
+            return MessageChain(chain=[Nodes(nodes=nodes)])
+        except Exception as e:  # noqa: BLE001
+            self.logger.warning(f"打包附图转发失败，回退为多图消息：{e}")
+            chain = MessageChain()
+            for p in paths:
+                chain.file_image(str(p))
+            return chain
 
     def _resolve_umo(self, target: Target) -> Optional[str]:
         if target.is_umo:
