@@ -117,6 +117,19 @@ class XRssFetcher(BaseFetcher):
         url = link or f"https://x.com/{screen}/status/{post_id}"
         ts = self._parse_pub(pub)
 
+        # 转推检测：渲染时显示"转推 @原作者"标识
+        is_rt = bool(re.match(r"^RT\s", title) or re.match(r"^RT\s", desc))
+        rt_author = ""
+        if is_rt:
+            m = re.match(r"^RT\s+(@?[^:：\n]{1,60})\s*[:：]", title) \
+                or re.match(r"^RT\s+(@?[^:：\n]{1,60})\s*[:：]", desc)
+            if m:
+                rt_author = m.group(1).strip()
+        extra = {"rss": True, "link": link, "stats_unavailable": True}
+        if is_rt:
+            extra["is_retweet"] = True
+            extra["rt_author"] = rt_author
+
         return Post(
             platform="x",
             account_id=screen,
@@ -132,7 +145,7 @@ class XRssFetcher(BaseFetcher):
             stats={},
             url=url,
             source_type="rss",
-            extra={"rss": True, "link": link, "stats_unavailable": True},
+            extra=extra,
         )
 
     @staticmethod

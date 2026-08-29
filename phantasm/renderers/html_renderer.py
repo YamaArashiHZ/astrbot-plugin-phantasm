@@ -211,6 +211,10 @@ body {{ margin:0; background:{bg}; font-family:'cjk','ph-emojis',sans-serif; col
         stats_html = (f'<div class="stats"><span>回复 {reply}</span><span>转发 {repost}</span>'
                       f'<span>喜欢 {like}</span>{quote_html}</div>') \
             if not post.extra.get("stats_unavailable") else ""
+        rt_badge = ""
+        if post.extra.get("is_retweet"):
+            rt = _html.escape(post.extra.get("rt_author") or ("@" + post.account_id))
+            rt_badge = f'<div class="rt-badge">转推 {rt}</div>'
         return f"""
 <div class="card xcard" id="card">
   <div class="brand"><span class="brand-pill">X / Twitter</span></div>
@@ -221,6 +225,7 @@ body {{ margin:0; background:{bg}; font-family:'cjk','ph-emojis',sans-serif; col
       <div class="meta">{meta}</div>
     </div>
   </div>
+  {rt_badge}
   <div class="content">{content}</div>
   {media}
   {stats_html}
@@ -271,6 +276,8 @@ def build_css(theme: dict, radius: int, platform: str) -> str:
 .name {{ font-weight:700; font-size:18px; display:flex; align-items:center; gap:4px; }}
 .v {{ width:20px; height:20px; }}
 .meta {{ color:{sub}; font-size:14px; margin-top:2px; }}
+.rt-badge {{ margin:2px 0 8px; padding:6px 12px; border-left:3px solid {accent};
+            background:{divider}; color:{sub}; font-size:13px; border-radius:6px; }}
 .title {{ font-size:22px; font-weight:700; margin:6px 0 4px; }}
 .content {{ font-size:18px; line-height:1.6; white-space:pre-wrap; word-break:break-word; margin-bottom:12px; min-height:4px; }}
 .media-wrap {{ display:grid; gap:8px; margin-bottom:12px; }}
