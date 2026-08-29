@@ -288,10 +288,14 @@ class CommandsMixin:
             yield event.plain_result(f"渲染失败：{e}")
             return
         # 成功：和「检测到新帖」一致——先发一条：文字说明(含链接)+卡片；再单独打包附图
+        # 用 event.send 直接发送（参考 pixiv_sender），避免 chain_result 处理 Nodes/forward 的问题
         caption = self.sender._build_caption(post, acc)
-        chain = self.sender._build_chain(post, acc, card, caption)
-        # chain_result 需要【组件列表】，不是 MessageChain 对象
-        yield event.chain_result(getattr(chain, "chain", None) or getattr(chain, "items", []))
+        card_chain = self.sender._build_chain(post, acc, card, caption)
+        try:
+            await event.send(card_chain)
+        except Exception as e:  # noqa: BLE001
+            yield event.plain_result(f"发送卡片失败：{e}")
+            return
         # 附图：单独打包成一条合并转发消息
         try:
             sid = str(event.get_self_id()) if callable(getattr(event, "get_self_id", None)) else ""
@@ -300,7 +304,10 @@ class CommandsMixin:
         att = await self.sender.build_attachment_forward(
             post, self_id=sid, tmp_dir=self.poller._render_dir())
         if att is not None:
-            yield event.chain_result(getattr(att, "chain", None) or getattr(att, "items", []))
+            try:
+                await event.send(att)
+            except Exception as e:  # noqa: BLE001
+                self.logger.warning(f"发送附图转发失败：{e}")
 
     def _find_account(self, alias: str):
         for a in self.config.accounts():
