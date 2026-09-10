@@ -16,6 +16,7 @@ from __future__ import annotations
 import html as _html
 import logging
 import re
+import uuid
 from pathlib import Path
 from typing import Optional
 
@@ -87,9 +88,12 @@ class HtmlCardRenderer:
         html_doc = self._build_html(post, account)
         out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
-        html_path = out_dir / f"_card_{post.post_id[:16]}.html"
+        # 文件名必须每次唯一：同一篇帖子可能被渲染两次（译文卡片 + 原文卡片），
+        # 若按 (post_id, created_ts) 命名，第二次会覆盖第一次，导致主卡片显示原文。
+        uniq = uuid.uuid4().hex[:6]
+        html_path = out_dir / f"_card_{post.post_id[:16]}_{uniq}.html"
         html_path.write_text(html_doc, encoding="utf-8")
-        out_png = out_dir / f"phantasm_{post.platform}_{post.post_id[:16]}_{abs(hash((post.kebab_id, post.created_ts))):x}.png"
+        out_png = out_dir / f"phantasm_{post.platform}_{post.post_id[:16]}_{uniq}.png"
 
         await self._ensure_browser()
         page = await self._browser.new_page(viewport={"width": 688, "height": 360, "deviceScaleFactor": 2})

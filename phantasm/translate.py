@@ -319,9 +319,12 @@ class Translator:
         except Exception as e:  # noqa: BLE001
             self.logger.warning(f"[{pid}] [翻译] 失败，回退原文：{e}")
             return ""
+        preview = out if len(out) <= 100 else out[:100] + "…"
+        preview = preview.replace("\n", " ⏎ ")
         self.logger.info(
             f"[{pid}] [翻译] 完成：{len(content)} 字 → {len(out)} 字"
-            + (f"（模型：{self._last_provider}）" if self._last_provider else ""))
+            + (f"（模型：{self._last_provider}）" if self._last_provider else "")
+            + f" | 译文：{preview}")
         return out
 
     # ----------------------------------------------------------------
