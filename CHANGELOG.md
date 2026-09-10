@@ -1,5 +1,16 @@
 # 更新日志
 
+## v1.13.4 (2026-08-29)
+
+- `credentials.x.rsshub_docker_socket` 现在同时支持 **HTTP 端点**：
+  填 `http://dockerproxy:2375` / `tcp://…` 即走 TCP，填路径（如 `/var/run/docker.sock`）走 unix socket。
+  这样可配 **tecnativa/docker-socket-proxy**（只开放 `CONTAINERS=1` + `POST=1`）实现一键生效，
+  而不必把宿主机 Docker 的完全控制权交给 AstrBot 容器。
+- 重建流程对「代理未开放 DELETE」更宽容：备份容器名加时间戳避免重名，删除备份改为**尽力而为**
+  （失败只告警并给出清理命令，不影响重建成功）。
+- 失败提示按端点类型区分（unix 提示挂载写法，TCP 提示检查代理与 CONTAINERS/POST 开关）；
+  WebUI 字段与说明同步更新。
+
 ## v1.13.3 (2026-08-29)
 
 - 修复：**翻译不生效**。AstrBot 里「配了模型但没设为默认」时 `get_using_provider()` 返回
