@@ -112,6 +112,7 @@ class BilibiliFetcher(BaseFetcher):
                         p.extra["content_from_opus"] = True
                 except Exception:  # noqa: BLE001
                     pass
+        posts = self.apply_account_filters(posts)     # 按账号配置过滤转发
         return FetchResult(posts=posts[:limit], total=len(posts))
 
     async def _fetch_opus_content(self, post_id: str) -> tuple[str, str]:
@@ -283,7 +284,8 @@ class BilibiliFetcher(BaseFetcher):
 
             # 转发：把原动态摘要放进 extra，渲染时展示“引用自”
             orig = item.get("orig")
-            extra: dict[str, Any] = {"source": source, "dtype": dtype, "bili_type": dtype}
+            extra: dict[str, Any] = {"source": source, "dtype": dtype, "bili_type": dtype,
+                                     "is_retweet": "FORWARD" in dtype}
             if duration_text:
                 extra["bili_duration"] = duration_text
             orig_author = ""

@@ -178,6 +178,22 @@ class BaseFetcher(ABC):
         posts.sort(key=lambda p: p.created_ts, reverse=True)
         return FetchResult(posts=posts, total=len(posts))
 
+    # ----------------------------------------------------------------
+    @staticmethod
+    def is_retweet(post: Post) -> bool:
+        """是否为转推/转发：各平台在 ``post.extra['is_retweet']`` 自报。"""
+        return bool(post.extra.get("is_retweet"))
+
+    def apply_account_filters(self, posts: list[Post]) -> list[Post]:
+        """按账号配置过滤。目前支持 ``filter_retweet``（剔除转推）。"""
+        if not self.account.filter_retweet:
+            return posts
+        kept = [p for p in posts if not self.is_retweet(p)]
+        dropped = len(posts) - len(kept)
+        if dropped:
+            self.logger.info(f"[{self.account.key}] 已过滤 {dropped} 条转推（filter_retweet=on）")
+        return kept
+
 
 def build_fetcher(account: Account, config: ConfigManager, http: HttpClient,
                   logger: logging.Logger) -> BaseFetcher:
