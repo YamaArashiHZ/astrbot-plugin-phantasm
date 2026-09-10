@@ -51,6 +51,7 @@ class Account:
     display_name: str = ""      # 可选覆盖显示名
     enabled: bool = True
     filter_retweet: bool = False   # 为 True 时不投递转推（RT）
+    translate_mode: str = "auto"   # auto(按全局+模型判定) / force(强制翻译) / off(不翻译)
     targets: list[Target] = field(default_factory=list)
 
     @property

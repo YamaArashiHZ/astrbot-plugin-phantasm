@@ -71,6 +71,7 @@ function fillForm(cfg) {
   accounts = (cfg.accounts || []).map((a) => ({
     platform: a.platform, account_id: a.account_id, display_name: a.display_name || "",
     enabled: a.enabled !== false, filter_retweet: a.filter_retweet === true,
+    translate_mode: a.translate_mode || "auto",
     targets: (a.targets || []).map((t) => ({ type: t.type, id: t.id })),
   }));
   renderAccounts();
@@ -153,6 +154,14 @@ function renderAccounts() {
             <span class="label">过滤转推</span>
             <input type="checkbox" class="switch" data-act="rt" data-i="${i}" ${a.filter_retweet ? "checked" : ""}/>
           </label>
+          <label class="field" style="margin-top:6px">
+            <span class="label">翻译模式</span>
+            <select data-act="trmode" data-i="${i}">
+              <option value="auto" ${a.translate_mode === "auto" ? "selected" : ""}>auto（自动：由模型判定是否需要翻译）</option>
+              <option value="force" ${a.translate_mode === "force" ? "selected" : ""}>force（强制翻译，忽略全局开关）</option>
+              <option value="off" ${a.translate_mode === "off" ? "selected" : ""}>off（该账号不翻译）</option>
+            </select>
+          </label>
           <div class="ac-actions">
             <button class="btn ghost small" data-act="toggle" data-i="${i}">${a.enabled ? "停用" : "启用"}</button>
             <button class="btn ghost small" data-act="target" data-i="${i}">加目标</button>
@@ -174,6 +183,13 @@ function renderAccounts() {
   box.innerHTML = html;
 
   box.querySelector("#btn-add-account")?.addEventListener("click", addAccount);
+  box.querySelectorAll('select[data-act="trmode"]').forEach((sel) => {
+    sel.addEventListener("change", () => {
+      const i = +sel.dataset.i;
+      accounts[i].translate_mode = sel.value || "auto";
+      toast(`该账号翻译模式：${accounts[i].translate_mode}（记得保存）`);
+    });
+  });
   box.querySelectorAll("[data-act]").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       const i = +btn.dataset.i;
@@ -189,6 +205,10 @@ function renderAccounts() {
         const inp = box.querySelector(`#ac_dn_${i}`);
         accounts[i].display_name = (inp && inp.value || "").trim();
         toast("已设代称，记得点保存生效");
+      } else if (act === "trmode") {
+        accounts[i].translate_mode = btn.value || "auto";
+        toast(`该账号翻译模式：${accounts[i].translate_mode}（记得保存）`);
+        return;   // select 自身保持状态，无需重绘
       } else if (act === "rt") {
         accounts[i].filter_retweet = !!btn.checked;
         toast(accounts[i].filter_retweet ? "已开启「过滤转推」（记得保存）" : "已关闭「过滤转推」（记得保存）");

@@ -62,14 +62,26 @@ RSSHub 的 `TWITTER_AUTH_TOKEN` 只能通过**容器环境变量**生效，因�
 > ⚠️ X 的 `auth_token` 会定期失效，失效后 RSSHub 会返回**空 feed**（表现为「该账号暂无帖子」）。
 > 排查：`docker logs rsshub` 出现 `Twitter cookie for token ... is not valid` 即需换新 token。
 
-### 4. 翻译外语正文（v1.12.0）
+### 4. 翻译外语正文（v1.12.0，v1.14.0 改为模型判定）
 
 用 **AstrBot 已配置的 LLM** 翻译，无需额外 API key。
 
-- 配置：`translate.enabled` / `target_lang`（默认 `zh`）/ `only_non_chinese`（默认 true）/
-  `cjk_threshold`（默认 0.30）/ `max_chars`（默认 1200）/ `prompt`（支持 `{lang}` `{text}`）
+- **是否需要翻译由模型判定**（同一次调用里：若已是目标语言只回 `__SKIP__`），
+  避免「汉字占比」这类启发式在日语（汉字多）上的误判
+- 平台语言标记优先：X 官方 API 的 `lang` 命中目标语言时直接跳过，**省一次模型调用**
+- 配置：`translate.enabled` / `target_lang`（默认 `zh`）/ `max_chars`（默认 1200）/
+  `provider_id`（指定模型，留空自动）/ `prompt`（自定义提示词，支持 `{lang}` `{text}` `{skip}`）
+- **按账号覆盖** `accounts[].translate_mode`：
+  | 值 | 行为 |
+  |---|---|
+  | `auto`（默认） | 受全局开关约束；由模型判定是否需要翻译 |
+  | `force` | 该账号**一律翻译**，无视全局开关与判定 |
+  | `off` | 该账号不翻译 |
+  命令：`/phantasm trmode <平台> <id> auto|force|off`；WebUI 账号卡片里也有下拉
 - 行为：主卡片显示**译文**（带「译文」徽标）；同时另渲一张**原文卡片**，
   随附图一起放进第二条「合并转发」消息
+- 排查：`/phantasm tr <文本>` 即时试翻译，输出「判定 / 模型 / 结果」；
+  日志统一 `[翻译]` 前缀记录全过程
 - WebUI：**渲染 / 翻译** 标签
 
 ### 5. 设置页分页（v1.13.0）
@@ -221,6 +233,8 @@ data/plugin_data/astrbot_plugin_phantasm/config.json
 | `/phantasm target <p> <id> clear` | 清空该账号的所有目标（管理员） |
 | `/phantasm alias <p> <id> <代称>` | 设置/清空账号代称（`/视奸` 按代称匹配） |
 | `/phantasm retweet <p> <id> on\|off` | 开关该账号的「过滤转推」 |
+| `/phantasm trmode <p> <id> auto\|force\|off` | 设置该账号的翻译模式 |
+| `/phantasm tr <文本>` | 即时试翻译，排查翻译链路 |
 | `/视奸 <代称>` | 只输出该账号**最新一条**（说明+卡片一条、原文卡片+附图一条），带全局冷却 |
 | `/phantasm pause` / `/phantasm resume [秒]` | 暂停 / 恢复轮询（管理员） |
 | `/phantasm help` | 查看用法 |

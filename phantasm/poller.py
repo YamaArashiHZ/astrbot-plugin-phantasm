@@ -196,7 +196,7 @@ class Poller:
         try:
             # 翻译：主卡片显示译文，另渲一张原文卡片随附图打包发送
             if self.translator is not None:
-                tr = await self.translator.maybe_translate(post)
+                tr = await self.translator.maybe_translate(post, account)
                 if tr:
                     render_post = replace(post, content=tr,
                                           extra={**post.extra, "translated": True})

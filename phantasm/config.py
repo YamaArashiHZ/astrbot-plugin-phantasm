@@ -240,6 +240,7 @@ class ConfigManager:
                 display_name=str(raw.get("display_name", "")).strip(),
                 enabled=bool(raw.get("enabled", True)),
                 filter_retweet=bool(raw.get("filter_retweet", False)),
+                translate_mode=str(raw.get("translate_mode", "auto") or "auto").strip().lower(),
                 targets=_parse_targets(raw.get("targets", [])),
             )
             if acc.platform and acc.account_id:
@@ -319,6 +320,20 @@ class ConfigManager:
             if (str(a.get("platform", "")).strip().lower() == platform
                     and str(a.get("account_id", "")).strip() == str(account_id).strip()):
                 a["display_name"] = str(name or "").strip()
+                self.save()
+                return True
+        return False
+
+    def set_account_translate_mode(self, platform: str, account_id: str, mode: str) -> bool:
+        """按账号设置翻译模式：auto / force / off。"""
+        mode = str(mode or "").strip().lower()
+        if mode not in ("auto", "force", "off"):
+            return False
+        platform = platform.strip().lower()
+        for a in self.config.get("accounts", []):
+            if (str(a.get("platform", "")).strip().lower() == platform
+                    and str(a.get("account_id", "")).strip() == str(account_id).strip()):
+                a["translate_mode"] = mode
                 self.save()
                 return True
         return False

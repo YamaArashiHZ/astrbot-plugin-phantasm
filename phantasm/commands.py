@@ -26,6 +26,7 @@ from astrbot.api.event import AstrMessageEvent
 
 from . import __version__
 from .models import Account
+from .translate import TranslationSkipped
 
 _COMMANDS = {"phantasm", "phan"}
 
@@ -71,6 +72,8 @@ class CommandsMixin:
             yield self._require_admin(event, lambda: self._cmd_alias(rest))
         elif cmd in ("retweet", "rt", "转推"):
             yield self._require_admin(event, lambda: self._cmd_retweet(rest))
+        elif cmd in ("trmode", "transmode", "翻译模式"):
+            yield self._require_admin(event, lambda: self._cmd_trmode(rest))
         elif cmd in ("tr", "translate", "翻译"):
             async for r in self._cmd_tr(event):
                 yield r
@@ -123,7 +126,9 @@ class CommandsMixin:
         for a in accs:
             state = "启用" if a.enabled else "停用"
             rt = " | 过滤转推" if a.filter_retweet else ""
-            lines.append(f"• [{a.platform}] {a.name} ({a.account_id}) [{state}{rt}]")
+            tm = getattr(a, "translate_mode", "auto") or "auto"
+            tr = "" if tm == "auto" else f" | 翻译:{tm}"
+            lines.append(f"• [{a.platform}] {a.name} ({a.account_id}) [{state}{rt}{tr}]")
             lines.append(f"   投递：{a.target_labels()}")
         return "\n".join(lines)
 
@@ -272,8 +277,27 @@ class CommandsMixin:
         return (f"已{'开启' if enabled else '关闭'} {platform}:{account_id} 的转推过滤"
                 f"（{'转推不再投递' if enabled else '转推照常投递'}）")
 
+    def _cmd_trmode(self, rest) -> str:
+        """按账号设置翻译模式：/phantasm trmode <平台> <id> auto|force|off"""
+        if len(rest) < 3:
+            return "用法：/phantasm trmode <bilibili|x> <account_id> auto|force|off"
+        platform, account_id = rest[0].strip().lower(), rest[1].strip()
+        mode = rest[2].strip().lower()
+        if mode not in ("auto", "force", "off"):
+            return "模式仅支持 auto（自动判定）/ force（强制翻译）/ off（不翻译）"
+        ok = self.config.set_account_translate_mode(platform, account_id, mode)
+        if not ok:
+            return f"未找到账号 {platform}:{account_id}"
+        desc = {"auto": "自动判定（按全局开关，由模型判断是否需要翻译）",
+                "force": "强制翻译（该账号一律翻译，无视全局开关与判定）",
+                "off": "不翻译"}[mode]
+        return f"已设置 {platform}:{account_id} 的翻译模式：{mode} —— {desc}"
+
     async def _cmd_tr(self, event: AstrMessageEvent) -> "async generator":
-        """`/phantasm tr <文本>`：用当前模型试翻译一次，用于排查翻译是否可用。"""
+        """`/phantasm tr <文本>`：用当前模型试翻译一次，看清「判定 → 模型 → 结果」。
+
+        同时跑两种模式，便于分辨是「模型判定不需要翻译」还是「调用失败」。
+        """
         args = self._split_args(event)
         if args and args[0].lower() in ("tr", "translate", "翻译"):
             args = args[1:]
@@ -288,14 +312,19 @@ class CommandsMixin:
         if not t.enabled():
             yield event.plain_result("翻译未启用：WebUI「渲染 / 翻译」里打开「启用翻译」后保存")
             return
-        need, why = t.judge(text, "")
+
+        lines = [f"目标语言：{t.target_lang()}"]
+        # 1) 自动模式：由模型判定是否需要翻译
         try:
-            out = await t.translate(text)
+            out = await t.translate(text, allow_skip=True)
+            lines.append("自动判定：模型认为**需要翻译**")
+            lines.append(f"译文：{out[:300]}")
+        except TranslationSkipped:
+            lines.append("自动判定：模型认为**已是目标语言**，无需翻译")
         except Exception as e:  # noqa: BLE001
-            yield event.plain_result(f"判断：{why}\n模型：{t._last_provider or '未解析到'}\n翻译失败：{e}")
-            return
-        yield event.plain_result(
-            f"判断：{why}\n模型：{t._last_provider or '未解析到'}\n译文：{out[:300]}")
+            lines.append(f"自动判定：调用失败 —— {e}")
+        lines.append(f"模型：{t._last_provider or '未解析到'}")
+        yield event.plain_result("\n".join(lines))
 
     async def _cmd_watch(self, event: AstrMessageEvent) -> "async generator":
         """`/视奸 <代称>`：输出该账号最新一条（说明+卡片，附图单独打包），全局冷却。"""
@@ -350,7 +379,7 @@ class CommandsMixin:
         translator = getattr(self, "translator", None)
         if translator is not None:
             try:
-                tr = await translator.maybe_translate(post)
+                tr = await translator.maybe_translate(post, acc)
                 if tr:
                     render_post = replace(post, content=tr,
                                           extra={**post.extra, "translated": True})
@@ -430,6 +459,7 @@ class CommandsMixin:
                 "/phantasm alias <p> <id> <代称>   设置代称\n"
                 "/phantasm retweet <p> <id> on|off 过滤转推\n"
                 "/phantasm tr <文本>            试翻译（排查翻译）\n"
+                "/phantasm trmode <p> <id> auto|force|off  账号翻译模式\n"
                 "/phantasm pause|resume         暂停/恢复")
 
     def _apply_summary(self, summary: dict) -> str:

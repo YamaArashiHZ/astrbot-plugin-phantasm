@@ -165,6 +165,10 @@ class WebMixin:
                 c = cur_by_key.get(f"{a.get('platform','')}:{a.get('account_id','')}")
                 if c is not None:
                     a["filter_retweet"] = bool(c.filter_retweet)
+            if "translate_mode" not in a:
+                c = cur_by_key.get(f"{a.get('platform','')}:{a.get('account_id','')}")
+                if c is not None:
+                    a["translate_mode"] = getattr(c, "translate_mode", "auto") or "auto"
 
     def _preserve_credentials(self, safe: dict) -> None:
         # 对于 payload 中缺失/为空的凭据，用当前配置中的真实值补齐
