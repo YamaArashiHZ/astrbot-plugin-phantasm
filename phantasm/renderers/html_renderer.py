@@ -192,6 +192,7 @@ body {{ margin:0; background:{bg}; font-family:'cjk','ph-emojis',sans-serif; col
   {title_html}
   <div class="content">{content}</div>
   {media}
+  {self._quote_html(post)}
   <div class="stats"><span>点赞 {like}</span><span>评论 {comment}</span><span>转发 {forward}</span></div>
   <div class="wm">Phantasm · Bilibili 动态</div>
 </div>"""
@@ -228,6 +229,7 @@ body {{ margin:0; background:{bg}; font-family:'cjk','ph-emojis',sans-serif; col
   {rt_badge}
   <div class="content">{content}</div>
   {media}
+  {self._quote_html(post)}
   {stats_html}
   <div class="wm">Phantasm · X / Twitter</div>
 </div>"""
@@ -240,6 +242,23 @@ body {{ margin:0; background:{bg}; font-family:'cjk','ph-emojis',sans-serif; col
         cls = "grid2" if n == 2 else ("grid3" if n == 3 else ("grid4" if n == 4 else "grid1"))
         imgs = "".join(f'<img class="media" src="{self._img(u)}" />' for u in urls)
         return f'<div class="media-wrap {cls}">{imgs}</div>'
+
+    def _quote_html(self, post) -> str:
+        """把被引用的帖子渲染成主卡片内的「子卡片」（引用块）。"""
+        author = post.extra.get("orig_author") or ""
+        content = post.extra.get("orig_content") or ""
+        if not (author or content):
+            return ""
+        avatar = post.extra.get("orig_avatar") or ""
+        media = [u for u in (post.extra.get("orig_media") or []) if u][:2]
+        av = f'<img class="q-avatar" src="{self._img(avatar)}" />' if avatar \
+            else '<span class="q-avatar q-avatar-ph"></span>'
+        imgs = "".join(f'<img class="q-media" src="{self._img(u)}" />' for u in media)
+        name = _html.escape(author) if author else "被引用的帖子"
+        return (f'<div class="quote">{av}<div class="q-body">'
+                f'<div class="q-name">{name}</div>'
+                f'<div class="q-text">{_html.escape(content[:500])}</div>'
+                f'{imgs}</div></div>')
 
     @staticmethod
     def _img(url: str) -> str:
@@ -265,6 +284,8 @@ def build_css(theme: dict, radius: int, platform: str) -> str:
     accent = theme.get("accent", "#1d9bf0")
     sub = theme.get("subtext", "#536471")
     divider = theme.get("divider", "#eef1f4")
+    text = theme.get("text", "#0f1419")
+    media_bg = theme.get("media_bg", divider)
     r = max(0, radius)
     return f"""
 #card {{ font-family:'cjk','ph-emojis',sans-serif; }}
@@ -278,6 +299,14 @@ def build_css(theme: dict, radius: int, platform: str) -> str:
 .meta {{ color:{sub}; font-size:14px; margin-top:2px; }}
 .rt-badge {{ margin:2px 0 8px; padding:6px 12px; border-left:3px solid {accent};
             background:{divider}; color:{sub}; font-size:13px; border-radius:6px; }}
+.quote {{ display:flex; gap:10px; margin:10px 0 4px; padding:12px;
+         border:1px solid {divider}; border-radius:14px; background:{media_bg}; }}
+.q-avatar {{ width:34px; height:34px; border-radius:50%; object-fit:cover; flex:0 0 34px; }}
+.q-avatar-ph {{ display:inline-block; background:{divider}; }}
+.q-body {{ flex:1; min-width:0; }}
+.q-name {{ font-weight:600; font-size:15px; color:{text}; margin-bottom:4px; }}
+.q-text {{ font-size:15px; line-height:1.5; color:{sub}; white-space:pre-wrap; word-break:break-word; }}
+.q-media {{ width:100%; max-height:260px; object-fit:cover; border-radius:10px; margin-top:8px; }}
 .title {{ font-size:22px; font-weight:700; margin:6px 0 4px; }}
 .content {{ font-size:18px; line-height:1.6; white-space:pre-wrap; word-break:break-word; margin-bottom:12px; min-height:4px; }}
 .media-wrap {{ display:grid; gap:8px; margin-bottom:12px; }}
