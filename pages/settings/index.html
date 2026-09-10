@@ -116,9 +116,9 @@
               </label>
             </div>
             <label class="field">
-              <span class="label">Docker socket 路径（自动重建容器用）</span>
-              <input type="text" id="x_rsshub_socket" placeholder="/var/run/docker.sock" />
-              <span class="hint">需把该路径挂载进 AstrBot 容器，如 -v /var/run/docker.sock:/var/run/docker.sock</span>
+              <span class="label">Docker 端点（自动重建容器用）</span>
+              <input type="text" id="x_rsshub_socket" placeholder="/var/run/docker.sock 或 http://dockerproxy:2375" />
+              <span class="hint">可填 unix socket 路径（需挂进容器），或 docker-socket-proxy 的地址（推荐：只暴露 CONTAINERS=1、POST=1，避免交出宿主机完全控制权）</span>
             </label>
             <div class="field switch-line">
               <span class="label">保存配置时自动应用 Token（重建 RSSHub 容器）</span>

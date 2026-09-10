@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from typing import Any, Optional
 
 import httpx
@@ -29,23 +30,51 @@ _KEEP_HOST_CONFIG = (
 
 
 class DockerControl:
-    """极简 Docker API 客户端（仅 unix socket，够用即可）。"""
+    """极简 Docker API 客户端。
 
-    def __init__(self, logger: logging.Logger, socket_path: str = DEFAULT_SOCKET):
+    端点支持两种（由配置值自动识别）：
+    - **unix socket**：``/var/run/docker.sock``（需把 socket 挂进 AstrBot 容器）
+    - **HTTP 端点**：``http://dockerproxy:2375`` 或 ``tcp://dockerproxy:2375``
+      （推荐配合 ``tecnativa/docker-socket-proxy``，只暴露必要接口，避免把宿主机
+      Docker 完全控制权交给 AstrBot 容器）
+    """
+
+    def __init__(self, logger: logging.Logger, endpoint: str = DEFAULT_SOCKET):
         self.logger = logger
-        self.socket_path = socket_path or DEFAULT_SOCKET
+        self.endpoint = (endpoint or DEFAULT_SOCKET).strip() or DEFAULT_SOCKET
+        self.is_tcp = self.endpoint.lower().startswith(("http://", "https://", "tcp://"))
 
     # ----------------------------------------------------------------
+    @property
+    def socket_path(self) -> str:
+        """兼容旧字段名。"""
+        return self.endpoint
+
+    def _base_url(self) -> str:
+        if not self.is_tcp:
+            return "http://docker"          # unix socket 传输层已指定，这里只是占位
+        e = self.endpoint
+        if e.lower().startswith("tcp://"):
+            e = "http://" + e[len("tcp://"):]
+        return e.rstrip("/") or "http://localhost:2375"
+
     def available(self) -> bool:
+        if self.is_tcp:
+            return True          # 可达性交给 ping() 判定
         try:
-            return os.path.exists(self.socket_path)
+            return os.path.exists(self.endpoint)
         except OSError:
             return False
 
     def _client(self) -> httpx.AsyncClient:
-        transport = httpx.AsyncHTTPTransport(uds=self.socket_path)
+        timeout = httpx.Timeout(60.0)
+        if self.is_tcp:
+            # docker-socket-proxy 一般在 Docker 内网，不能走宿主代理
+            return httpx.AsyncClient(base_url=self._base_url(), timeout=timeout,
+                                     trust_env=False)
+        transport = httpx.AsyncHTTPTransport(uds=self.endpoint)
         return httpx.AsyncClient(transport=transport, base_url="http://docker",
-                                 timeout=httpx.Timeout(60.0), trust_env=False)
+                                 timeout=timeout, trust_env=False)
 
     async def ping(self) -> bool:
         if not self.available():
@@ -73,8 +102,13 @@ class DockerControl:
                                 image_override: str = "") -> tuple[bool, str]:
         """用合并后的环境变量重建容器（保留端口/挂载/重启策略等）。"""
         if not await self.ping():
-            return False, (f"无法访问 docker socket（{self.socket_path}）。"
-                           "请把 -v /var/run/docker.sock:/var/run/docker.sock 挂给 AstrBot 容器后重试")
+            if self.is_tcp:
+                return False, (f"无法连接 Docker 端点 {self.endpoint}："
+                               f"请确认 docker-socket-proxy 已启动、与 AstrBot 同网络，"
+                               f"且已开放 CONTAINERS=1 与 POST=1")
+            return False, (f"无法访问 {self.endpoint}：需给 AstrBot 容器挂载 "
+                           f"-v {self.endpoint}:{self.endpoint}，"
+                           f"或改用 docker-socket-proxy 并在配置里填其 HTTP 地址")
         info = await self.inspect(name)
         if not info:
             return False, f"未找到容器 {name}（可在配置里改 rsshub_container）"
@@ -120,8 +154,8 @@ class DockerControl:
         except Exception:  # noqa: BLE001
             net_cfg = {}
 
-        # 换名保留原容器做回滚（失败时恢复）
-        backup = f"{name}__phantasm_bak"
+        # 换名保留原容器做回滚（失败时恢复）；用时间戳避免残留备份重名冲突
+        backup = f"{name}__phantasm_bak_{int(time.time())}"
         rolled = False
         try:
             async with self._client() as c:
@@ -154,8 +188,15 @@ class DockerControl:
                     await c.post(f"/containers/{backup}/rename", params={"name": name})
                     await c.post(f"/containers/{name}/start")
                     return False, f"新容器启动失败（HTTP {st.status_code}），已回滚旧容器：{st.text[:200]}"
-                # 成功：删掉备份容器
-                await c.delete(f"/containers/{backup}", params={"force": True})
+                # 成功：尽力删掉备份容器（socket-proxy 未开放 DELETE 时允许失败）
+                try:
+                    dr = await c.delete(f"/containers/{backup}", params={"force": True})
+                    if dr.status_code >= 300:
+                        self.logger.warning(
+                            f"备份容器 {backup} 未删除（HTTP {dr.status_code}），可手动清理："
+                            f"docker rm -f {backup}")
+                except Exception as e:  # noqa: BLE001
+                    self.logger.warning(f"备份容器 {backup} 未删除（{e}），可手动清理：docker rm -f {backup}")
             self.logger.info(f"已用新环境变量重建容器 {name}（id={new_id[:12]}）")
             return True, f"已重建容器 {name} 并重启，环境变量已更新"
         except Exception as e:  # noqa: BLE001
