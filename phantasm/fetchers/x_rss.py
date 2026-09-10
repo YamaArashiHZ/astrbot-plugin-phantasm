@@ -99,19 +99,12 @@ class XRssFetcher(BaseFetcher):
         author = text("author") or screen   # RSSHub 的 <author> 是显示名(如"雫丶Shizuku✨DUCEXY")
 
         # 正文：description 用 <br> 保留换行；title 是压平文本。优先 description 还原换行。
-        content = self._desc_to_content(desc, title)
+        # 引用帖：RSSHub 用 <div class="rsshub-quote">…</div> 包住被引用的推文，先拆出来
+        desc_main, quote = self._split_quote(desc)
+        content = self._desc_to_content(desc_main, title)
 
-        # 媒体图：从 description 里抽 img src + 视频海报(RSSHub 会用 <video poster=...>)
-        # 注意：URL 里可能是 HTML 实体(如 &amp;)，要先解码，否则下载 404
-        media_urls: list[str] = []
-        for u in _IMG_RE.findall(desc):
-            u = _h.unescape(u)
-            if u.startswith("http") and u not in media_urls:
-                media_urls.append(u)
-        for u in _VIDEO_POSTER_RE.findall(desc):
-            u = _h.unescape(u)
-            if u.startswith("http") and u not in media_urls:
-                media_urls.append(u)
+        # 媒体图：主正文的 img src + 视频海报；引用帖的图归到 orig_media
+        media_urls = self._extract_media_urls(desc_main)
 
         post_id = ""
         m = _STATUS_RE.search(link)
@@ -135,6 +128,13 @@ class XRssFetcher(BaseFetcher):
         if is_rt:
             extra["is_retweet"] = True
             extra["rt_author"] = rt_author
+        if quote:
+            extra["orig_author"] = quote.get("author") or ""
+            extra["orig_content"] = quote.get("content") or ""
+            if quote.get("media"):
+                extra["orig_media"] = quote["media"]
+            if quote.get("avatar"):
+                extra["orig_avatar"] = quote["avatar"]
 
         return Post(
             platform="x",
@@ -153,6 +153,56 @@ class XRssFetcher(BaseFetcher):
             source_type="rss",
             extra=extra,
         )
+
+    @staticmethod
+    def _extract_media_urls(html: str) -> list[str]:
+        """抽取 HTML 里的图片/视频封面（URL 先做 HTML 解码，否则下载 404）。"""
+        out: list[str] = []
+        for u in _IMG_RE.findall(html or ""):
+            u = _h.unescape(u)
+            if u.startswith("http") and u not in out:
+                out.append(u)
+        for u in _VIDEO_POSTER_RE.findall(html or ""):
+            u = _h.unescape(u)
+            if u.startswith("http") and u not in out:
+                out.append(u)
+        return out
+
+    @staticmethod
+    def _split_quote(desc: str) -> tuple[str, dict]:
+        """把 description 里的引用帖 ``<div class="rsshub-quote">…</div>`` 拆出来。
+
+        返回 (主正文 HTML, 引用信息 {author, content, media, avatar})。
+        """
+        m = re.search(r'<div class="rsshub-quote">(.*?)</div>', desc or "",
+                      re.DOTALL | re.IGNORECASE)
+        if not m:
+            return desc or "", {}
+        qhtml = m.group(1)
+        main = (desc or "").replace(m.group(0), "")
+        main = re.sub(r"(?:\s*<hr\s*/?>\s*)+$", "", main, flags=re.IGNORECASE)
+        media: list[str] = []
+        avatar = ""
+        for tag in re.findall(r"<img[^>]*>", qhtml, re.IGNORECASE):
+            src = re.search(r'src="([^"]+)"', tag, re.IGNORECASE)
+            if not src:
+                continue
+            u = _h.unescape(src.group(1))
+            if not u.startswith("http"):
+                continue
+            size = re.search(r'(?:width|height)="?(\d+)', tag, re.IGNORECASE)
+            if not avatar and size and int(size.group(1)) <= 48:
+                avatar = u          # 小尺寸 => 引用作者头像
+            elif u not in media:
+                media.append(u)
+        qtext = _TAG_RE.sub("", qhtml)
+        qtext = _h.unescape(qtext).replace("\u2002", " ").replace("&ensp;", " ")
+        qtext = re.sub(r"\s+", " ", qtext).strip()
+        qauthor, qcontent = "", qtext
+        if ":" in qtext:
+            qauthor, _, qcontent = qtext.partition(":")
+            qauthor, qcontent = qauthor.strip(), qcontent.strip()
+        return main, {"author": qauthor, "content": qcontent, "media": media, "avatar": avatar}
 
     @staticmethod
     def _desc_to_content(desc: str, title_fallback: str) -> str:
