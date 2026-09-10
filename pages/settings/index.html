@@ -93,6 +93,25 @@
                 <input type="text" id="x_rss_base" placeholder="http://host.docker.internal:1200" />
               </label>
             </div>
+            <div class="grid-2">
+              <label class="field">
+                <span class="label">RSSHub Auth_Token（X 的 auth_token cookie）</span>
+                <input type="password" id="x_rsshub_token" autocomplete="off" placeholder="留空/掩码 = 保留原值" />
+                <span class="hint">保存后（开启自动应用时）插件会重建 RSSHub 容器使其生效</span>
+              </label>
+              <label class="field">
+                <span class="label">RSSHub 容器名</span>
+                <input type="text" id="x_rsshub_container" placeholder="rsshub" />
+                <span class="hint">自动重建需给 AstrBot 容器挂载 /var/run/docker.sock</span>
+              </label>
+            </div>
+            <div class="field switch-line">
+              <span class="label">保存配置时自动应用 Token（重建 RSSHub 容器）</span>
+              <input type="checkbox" class="switch" id="x_rsshub_auto_apply" />
+            </div>
+            <div class="field">
+              <button class="btn ghost" id="btn-apply-rsshub" type="button">立即应用 Token 并重启 RSSHub</button>
+            </div>
           </div>
         </section>
 

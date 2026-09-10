@@ -55,6 +55,9 @@ function fillForm(cfg) {
   $("x_bearer").value = cfg.credentials?.x?.bearer_token ?? "";
   $("x_mode").value = cfg.credentials?.x?.mode ?? "api";
   $("x_rss_base").value = cfg.credentials?.x?.rss_base ?? "https://rsshub.app";
+  $("x_rsshub_token").value = cfg.credentials?.x?.rsshub_auth_token ?? "";
+  $("x_rsshub_container").value = cfg.credentials?.x?.rsshub_container ?? "rsshub";
+  $("x_rsshub_auto_apply").checked = cfg.credentials?.x?.rsshub_auto_apply !== false;
 
   accounts = (cfg.accounts || []).map((a) => ({
     platform: a.platform, account_id: a.account_id, display_name: a.display_name || "",
@@ -92,7 +95,12 @@ function collect() {
     },
     credentials: {
       bilibili: { cookie: strVal("bili_cookie") },
-      x: { bearer_token: strVal("x_bearer"), mode: strVal("x_mode"), rss_base: strVal("x_rss_base") },
+      x: {
+        bearer_token: strVal("x_bearer"), mode: strVal("x_mode"), rss_base: strVal("x_rss_base"),
+        rsshub_auth_token: strVal("x_rsshub_token"),
+        rsshub_container: strVal("x_rsshub_container"),
+        rsshub_auto_apply: boolVal("x_rsshub_auto_apply"),
+      },
     },
     accounts,
   };
@@ -247,10 +255,28 @@ async function saveConfig() {
   try {
     const payload = collect();
     const r = await bridge.apiPost("config/save", payload);
-    if (r && r.saved) toast("配置已保存，正在生效");
-    else toast("保存失败（请重试）");
+    if (r && r.saved) {
+      const ap = r.rsshub_apply;
+      if (ap) toast(ap.ok ? "配置已保存；" + ap.message : "配置已保存，但 RSSHub 应用失败：" + ap.message);
+      else toast("配置已保存，正在生效");
+    } else toast("保存失败（请重试）");
   } catch (e) {
     toast("保存失败：" + e);
+  }
+}
+
+async function applyRsshubToken() {
+  const btn = $("btn-apply-rsshub");
+  if (btn) btn.disabled = true;
+  try {
+    // 先把当前表单存下来（含 token），再应用
+    await bridge.apiPost("config/save", collect());
+    const r = await bridge.apiPost("rsshub/apply", {});
+    toast(r && r.ok ? "已应用：" + r.message : "应用失败：" + ((r && r.message) || "未知错误"));
+  } catch (e) {
+    toast("应用失败：" + e);
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 
@@ -364,6 +390,7 @@ async function init() {
   setupNav();
   initSmoothWheelScroll();
   $("btn-save").addEventListener("click", saveConfig);
+  $("btn-apply-rsshub")?.addEventListener("click", applyRsshubToken);
   $("btn-check").addEventListener("click", doCheck);
   $("btn-clear").addEventListener("click", doClear);
   $("confirm-ok").addEventListener("click", () => closeConfirm(true));
