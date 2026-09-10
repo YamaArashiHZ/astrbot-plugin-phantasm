@@ -26,6 +26,7 @@ from .phantasm.http import HttpClient
 from .phantasm.poller import Poller
 from .phantasm.renderers import CardRenderer
 from .phantasm.sender import Sender
+from .phantasm.translate import Translator
 from .phantasm.storage import StorageManager
 from .phantasm.web import WebMixin
 
@@ -55,8 +56,10 @@ class PhantasmPlugin(CommandsMixin, WebMixin, Star):
         self.sender = Sender(context, self.config, logger, downloader=self.http.get_bytes)
 
         # 轮询调度
+        self.translator = Translator(context, self.config, logger)
         self.poller = Poller(self.config, self.storage, self.http,
-                             self.renderer, self.sender, logger, self.data_dir)
+                             self.renderer, self.sender, logger, self.data_dir,
+                             translator=self.translator)
 
         # ---- 插件设置页后端 API ----
         context.register_web_api(
