@@ -92,6 +92,10 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "mode": "api",               # api: 官方 API v2 / rss: RSSHub 第三方(免费不占额度)
             "bearer_token": "",
             "rss_base": "https://rsshub.app",   # mode=rss 时的 RSSHub 实例地址
+            # RSSHub 的 X auth_token：填了并开启自动应用后，插件会重建 RSSHub 容器使其生效
+            "rsshub_auth_token": "",
+            "rsshub_container": "rsshub",       # RSSHub 容器名（重建时用）
+            "rsshub_auto_apply": True,          # 保存配置时若 token 变化则自动重建容器
             "api_key": "",
             "api_secret": "",
             "access_token": "",

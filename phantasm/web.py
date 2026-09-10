@@ -16,7 +16,14 @@ from .config import DEFAULT_CONFIG, _deep_merge, mask_secret
 
 
 def _is_masked(value: Any) -> bool:
-    return isinstance(value, str) and bool(value) and set(value) == {"*"}
+    """是否为「脱敏占位值」。
+
+    ``mask_secret`` 会保留尾部若干真实字符（如 ``******abcd``），所以不能要求
+    全为 ``*``；这里只要有连续 3 个以上 ``*`` 就认为是掩码（真实凭据几乎不可能含 ``***``）。
+    """
+    if not isinstance(value, str) or not value:
+        return False
+    return "***" in value
 
 
 class WebMixin:
@@ -29,13 +36,40 @@ class WebMixin:
         payload = await request.json(default={})
         if not isinstance(payload, dict):
             return error_response("请求内容格式无效", status_code=400)
+        old_token = str((self.config.credentials.get("x") or {}).get("rsshub_auth_token") or "")
         try:
             self._apply_web_save(payload)
         except Exception as e:  # noqa: BLE001
             self.logger.error(f"配置保存失败：{e}")
             return error_response(f"保存配置失败：{e}", status_code=500)
         self._reconfigure()
-        return json_response({"saved": True})
+        out: dict[str, Any] = {"saved": True}
+        # RSSHub Auth_Token 变化且开启自动应用 → 重建 RSSHub 容器使其生效
+        x = self.config.credentials.get("x") or {}
+        new_token = str(x.get("rsshub_auth_token") or "")
+        if new_token and new_token != old_token and x.get("rsshub_auto_apply", True):
+            ok, msg = await self._apply_rsshub_token(new_token,
+                                                     str(x.get("rsshub_container") or "rsshub"))
+            out["rsshub_apply"] = {"ok": ok, "message": msg}
+        return json_response(out)
+
+    async def web_apply_rsshub_token(self):
+        """手动把当前配置里的 RSSHub Auth_Token 应用到容器（重建 RSSHub）。"""
+        x = self.config.credentials.get("x") or {}
+        token = str(x.get("rsshub_auth_token") or "")
+        if not token:
+            return error_response("未配置 RSSHub Auth_Token", status_code=400)
+        ok, msg = await self._apply_rsshub_token(token, str(x.get("rsshub_container") or "rsshub"))
+        return json_response({"ok": ok, "message": msg})
+
+    async def _apply_rsshub_token(self, token: str, container: str) -> tuple[bool, str]:
+        from .dockerctl import DockerControl
+        ctl = DockerControl(self.logger, getattr(self, "docker_socket", "/var/run/docker.sock"))
+        if not await ctl.ping():
+            return False, ("无法访问 docker socket（需给 AstrBot 容器挂载 "
+                           "-v /var/run/docker.sock:/var/run/docker.sock）；"
+                           "否则请手动更新 RSSHub 的 TWITTER_AUTH_TOKEN")
+        return await ctl.recreate_with_env(container, {"TWITTER_AUTH_TOKEN": token})
 
     # ---- 状态 / 统计 ----
     async def web_get_status(self):
@@ -73,7 +107,8 @@ class WebMixin:
         if bil.get("cookie"):
             bil["cookie"] = mask_secret(bil["cookie"], 6)
         x = creds.setdefault("x", {})
-        for key in ("bearer_token", "api_key", "api_secret", "access_token", "access_token_secret"):
+        for key in ("bearer_token", "api_key", "api_secret", "access_token", "access_token_secret",
+                    "rsshub_auth_token"):
             if x.get(key):
                 x[key] = mask_secret(x[key], 4)
         return cfg
@@ -137,7 +172,8 @@ class WebMixin:
                 if not safe_p.get(k) or _is_masked(safe_p.get(k)):
                     safe_p[k] = cur_p.get(k, "")
         fill("bilibili", ["cookie"])
-        fill("x", ["bearer_token", "api_key", "api_secret", "access_token", "access_token_secret"])
+        fill("x", ["bearer_token", "api_key", "api_secret", "access_token", "access_token_secret",
+                   "rsshub_auth_token"])
 
     def _reconfigure(self) -> None:
         self.http.configure(self.config.network)
