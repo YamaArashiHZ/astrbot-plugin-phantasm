@@ -20,7 +20,11 @@ Phantasm 是一款面向 **AstrBot** 的发帖监听插件：它会定时检查�
 | 去重 | `processed.json` 持久化已处理帖子 ID，有界历史，杜绝重复投递 |
 | 独立目标 | 每个账号可配置一个或多个 `group` / `private` 目标 |
 | 管理命令 | `/phantasm` 状态 / 立即检查 / 订阅列表 / 增删账号与目标 / 暂停恢复 |
-| 设置页 | 插件自带 Web 设置页（凭据脱敏，不回显明文） |
+| 按账号过滤转推 | 每个账号可开关「过滤转推」，开启后 RT/转发动态不再投递（`filter_retweet`） |
+| 引用帖渲染 | 引用（quote）的帖子渲染为主卡片内的**独立子卡片**（作者 + 正文 + 缩略图） |
+| 翻译 | 用 **AstrBot 已配置的 LLM** 翻译外语正文：主卡片显示译文，原文卡片随附图打包发送 |
+| 卡片与附图分离 | 一条消息发「说明+卡片」，另一条**合并转发**打包原文卡片 + 附图（参考 pixiv_sender） |
+| 设置页分页 | 设置页分为 账号管理 / 渲染·翻译 / 投递 / 凭据·网络 / 状态 五个标签 |
 | 容错 | 代理、超时、重试、错误分类；单账号失败不影响整体 |
 
 > **监听范围（Bilibili）**：插件监听的是用户的**动态流**（`feed/space`），覆盖 B 站的**动态**
@@ -28,6 +32,50 @@ Phantasm 是一款面向 **AstrBot** 的发帖监听插件：它会定时检查�
 > 因此**新视频投稿也会被监听到**并渲染成视频卡（含封面/标题/播放量/时长）。但它不是独立监听
 > 「投稿列表」接口，而是从动态流捕获。若某条投稿未生成动态（个别情况），则不会触发。
 > **X/Twitter** 监听的是推文（`tweets`），含普通推文/转发。
+
+## 新功能详解
+
+### 1. 按账号过滤转推（v1.9.0）
+
+- 命令：`/phantasm retweet <bilibili|x> <account_id> on|off`
+- 配置：账号项里的 `filter_retweet: true`
+- WebUI：**账号管理** 标签 → 账号卡片里的「过滤转推」开关
+- 三种来源都会标记转发并在抓取层过滤：B 站转发动态、X 官方 API（`referenced_tweets`）、X RSSHub（`RT ` 前缀）
+
+### 2. X 引用帖渲染为独立子卡片（v1.10.0）
+
+RSSHub 会把被引用的推文放在 `<div class="rsshub-quote">` 里。插件会把它拆出来，
+渲染成主卡片内一个带边框的子卡片（引用作者 + 正文 + 缩略图），主正文不再混入引用内容。
+B 站转发动态的「引用自」也走同一套渲染。
+
+### 3. RSSHub Auth_Token 在 WebUI 配置并自动生效（v1.11.0）
+
+RSSHub 的 `TWITTER_AUTH_TOKEN` 只能通过**容器环境变量**生效，因此插件提供自动应用：
+
+- 配置：`credentials.x.rsshub_auth_token` / `rsshub_container`（默认 `rsshub`）/ `rsshub_auto_apply`
+- WebUI：**凭据 / 网络** 标签 → 填 token → 保存（开启自动应用时即生效），或点「立即应用 Token 并重启 RSSHub」
+- 原理：`phantasm/dockerctl.py` 经 `/var/run/docker.sock` 调用 Docker API，
+  inspect → 旧容器改名备份 → 同名重建（合并 env，保留端口/挂载/代理/重启策略）→ 启动，失败自动回滚
+- **需要**给 AstrBot 容器挂载 socket：`-v /var/run/docker.sock:/var/run/docker.sock`；
+  未挂载时接口会返回明确提示，改为手动更新容器环境变量
+
+> ⚠️ X 的 `auth_token` 会定期失效，失效后 RSSHub 会返回**空 feed**（表现为「该账号暂无帖子」）。
+> 排查：`docker logs rsshub` 出现 `Twitter cookie for token ... is not valid` 即需换新 token。
+
+### 4. 翻译外语正文（v1.12.0）
+
+用 **AstrBot 已配置的 LLM** 翻译，无需额外 API key。
+
+- 配置：`translate.enabled` / `target_lang`（默认 `zh`）/ `only_non_chinese`（默认 true）/
+  `cjk_threshold`（默认 0.30）/ `max_chars`（默认 1200）/ `prompt`（支持 `{lang}` `{text}`）
+- 行为：主卡片显示**译文**（带「译文」徽标）；同时另渲一张**原文卡片**，
+  随附图一起放进第二条「合并转发」消息
+- WebUI：**渲染 / 翻译** 标签
+
+### 5. 设置页分页（v1.13.0）
+
+设置页分为 **账号管理 / 渲染·翻译 / 投递 / 凭据·网络 / 状态** 五个标签，
+账号列表集中到「账号管理」，切换标签会记忆上次所在页。
 
 ## 环境要求
 
@@ -171,6 +219,9 @@ data/plugin_data/astrbot_plugin_phantasm/config.json
 | `/phantasm target <p> <id> add group <群号>` | 为账号添加群聊目标（管理员） |
 | `/phantasm target <p> <id> add private <QQ号>` | 为账号添加私聊目标（管理员） |
 | `/phantasm target <p> <id> clear` | 清空该账号的所有目标（管理员） |
+| `/phantasm alias <p> <id> <代称>` | 设置/清空账号代称（`/视奸` 按代称匹配） |
+| `/phantasm retweet <p> <id> on\|off` | 开关该账号的「过滤转推」 |
+| `/视奸 <代称>` | 只输出该账号**最新一条**（说明+卡片一条、原文卡片+附图一条），带全局冷却 |
 | `/phantasm pause` / `/phantasm resume [秒]` | 暂停 / 恢复轮询（管理员） |
 | `/phantasm help` | 查看用法 |
 
@@ -180,7 +231,10 @@ data/plugin_data/astrbot_plugin_phantasm/config.json
 /phantasm add bilibili 2
 /phantasm target bilibili 2 add group 123456789
 /phantasm target bilibili 2 add private 987654321
+/phantasm alias x LanziiLove 然
+/phantasm retweet x LanziiLove on
 /phantasm check
+/视奸 然
 ```
 
 ## 实现细节
