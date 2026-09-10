@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 
 from astrbot.api.event import AstrMessageEvent
 
@@ -300,8 +301,22 @@ class CommandsMixin:
             yield event.plain_result("该账号暂无帖子")
             return
         post = res.posts[0]
+        # 翻译：主卡片显示译文，原文卡片随附图一起打包
+        render_post = post
+        original_card = ""
+        translator = getattr(self, "translator", None)
+        if translator is not None:
+            try:
+                tr = await translator.maybe_translate(post)
+                if tr:
+                    render_post = replace(post, content=tr,
+                                          extra={**post.extra, "translated": True})
+            except Exception as e:  # noqa: BLE001
+                self.logger.warning(f"翻译异常（回退原文）：{e}")
         try:
-            card = await self.renderer.render(post, acc, self.poller._render_dir())
+            card = await self.renderer.render(render_post, acc, self.poller._render_dir())
+            if render_post is not post:
+                original_card = await self.renderer.render(post, acc, self.poller._render_dir())
         except Exception as e:  # noqa: BLE001
             yield event.plain_result(f"渲染失败：{e}")
             return
@@ -321,7 +336,8 @@ class CommandsMixin:
             sid = ""
         try:
             att = await self.sender.build_attachment_forward(
-                post, self_id=sid, tmp_dir=self.poller._render_dir())
+                post, self_id=sid, tmp_dir=self.poller._render_dir(),
+                extra_images=[original_card] if original_card else None)
         except Exception as e:  # noqa: BLE001
             self.logger.warning(f"打包附图异常：{e}")
             att = None
