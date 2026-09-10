@@ -68,6 +68,8 @@ class CommandsMixin:
             yield self._require_admin(event, lambda: self._cmd_target(rest))
         elif cmd in ("alias", "代称", "name"):
             yield self._require_admin(event, lambda: self._cmd_alias(rest))
+        elif cmd in ("retweet", "rt", "转推"):
+            yield self._require_admin(event, lambda: self._cmd_retweet(rest))
         elif cmd in ("pause", "暂停"):
             yield self._require_admin(event, lambda: self._cmd_pause())
         elif cmd in ("resume", "恢复"):
@@ -109,7 +111,8 @@ class CommandsMixin:
         lines = [f"👻 订阅账号（{len(accs)}）"]
         for a in accs:
             state = "启用" if a.enabled else "停用"
-            lines.append(f"• [{a.platform}] {a.name} ({a.account_id}) [{state}]")
+            rt = " | 过滤转推" if a.filter_retweet else ""
+            lines.append(f"• [{a.platform}] {a.name} ({a.account_id}) [{state}{rt}]")
             lines.append(f"   投递：{a.target_labels()}")
         return "\n".join(lines)
 
@@ -243,8 +246,23 @@ class CommandsMixin:
             return f"未找到账号 {platform}:{account_id}"
         return f"已设置 {platform}:{account_id} 的代称：{name or '（已清空）'}"
 
+    def _cmd_retweet(self, rest) -> str:
+        """按账号开关「过滤转推」：/phantasm retweet <平台> <id> on|off"""
+        if len(rest) < 3:
+            return "用法：/phantasm retweet <bilibili|x> <account_id> on|off"
+        platform, account_id = rest[0].strip().lower(), rest[1].strip()
+        val = rest[2].strip().lower()
+        if val not in ("on", "off", "1", "0", "true", "false", "开", "关"):
+            return "用法：/phantasm retweet <平台> <id> on|off"
+        enabled = val in ("on", "1", "true", "开")
+        ok = self.config.set_account_filter_retweet(platform, account_id, enabled)
+        if not ok:
+            return f"未找到账号 {platform}:{account_id}"
+        return (f"已{'开启' if enabled else '关闭'} {platform}:{account_id} 的转推过滤"
+                f"（{'转推不再投递' if enabled else '转推照常投递'}）")
+
     async def _cmd_watch(self, event: AstrMessageEvent) -> "async generator":
-        """`/视奸 <代称>`：只输出该账号最新一张卡片，全局冷却。"""
+        """`/视奸 <代称>`：输出该账号最新一条（说明+卡片，附图单独打包），全局冷却。"""
         args = self._split_args(event)
         if args and args[0].lower() in ("视奸", "watch", "jian", "sj"):
             args = args[1:]
@@ -346,6 +364,8 @@ class CommandsMixin:
                 "/phantasm del <p> <id>         删除账号\n"
                 "/phantasm target <p> <id> add group|private|umo <id>\n"
                 "/phantasm target <p> <id> clear\n"
+                "/phantasm alias <p> <id> <代称>   设置代称\n"
+                "/phantasm retweet <p> <id> on|off 过滤转推\n"
                 "/phantasm pause|resume         暂停/恢复")
 
     def _apply_summary(self, summary: dict) -> str:

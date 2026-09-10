@@ -58,7 +58,8 @@ function fillForm(cfg) {
 
   accounts = (cfg.accounts || []).map((a) => ({
     platform: a.platform, account_id: a.account_id, display_name: a.display_name || "",
-    enabled: a.enabled !== false, targets: (a.targets || []).map((t) => ({ type: t.type, id: t.id })),
+    enabled: a.enabled !== false, filter_retweet: a.filter_retweet === true,
+    targets: (a.targets || []).map((t) => ({ type: t.type, id: t.id })),
   }));
   renderAccounts();
 }
@@ -122,6 +123,10 @@ function renderAccounts() {
               style="flex:1;padding:6px;border:1px solid var(--border);border-radius:8px"/>
             <button class="btn ghost small" data-act="setname" data-i="${i}">设代称</button>
           </div>
+          <label class="switch-line" style="margin-top:6px">
+            <span class="label">过滤转推</span>
+            <input type="checkbox" class="switch" data-act="rt" data-i="${i}" ${a.filter_retweet ? "checked" : ""}/>
+          </label>
           <div class="ac-actions">
             <button class="btn ghost small" data-act="toggle" data-i="${i}">${a.enabled ? "停用" : "启用"}</button>
             <button class="btn ghost small" data-act="target" data-i="${i}">加目标</button>
@@ -158,6 +163,9 @@ function renderAccounts() {
         const inp = box.querySelector(`#ac_dn_${i}`);
         accounts[i].display_name = (inp && inp.value || "").trim();
         toast("已设代称，记得点保存生效");
+      } else if (act === "rt") {
+        accounts[i].filter_retweet = !!btn.checked;
+        toast(accounts[i].filter_retweet ? "已开启「过滤转推」（记得保存）" : "已关闭「过滤转推」（记得保存）");
       } else if (act === "target") {
         addingTarget = addingTarget === i ? -1 : i;
       }

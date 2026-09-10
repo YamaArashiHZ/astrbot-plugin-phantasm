@@ -63,6 +63,7 @@ class XRssFetcher(BaseFetcher):
                 f"请换可达实例或自建 RSSHub。")
 
         posts = self._parse_rss(xml, screen)
+        posts = self.apply_account_filters(posts)     # 按账号配置过滤转推
         posts.sort(key=lambda p: p.created_ts, reverse=True)
         return FetchResult(posts=posts[:limit], total=len(posts))
 

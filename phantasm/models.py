@@ -50,6 +50,7 @@ class Account:
     account_id: str = ""        # bilibili UID 或 X 的 screen_name/user_id
     display_name: str = ""      # 可选覆盖显示名
     enabled: bool = True
+    filter_retweet: bool = False   # 为 True 时不投递转推（RT）
     targets: list[Target] = field(default_factory=list)
 
     @property

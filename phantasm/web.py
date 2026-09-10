@@ -119,6 +119,10 @@ class WebMixin:
                 c = cur_by_key.get(f"{a.get('platform','')}:{a.get('account_id','')}")
                 if c is not None:
                     a["display_name"] = c.display_name or ""
+            if "filter_retweet" not in a:
+                c = cur_by_key.get(f"{a.get('platform','')}:{a.get('account_id','')}")
+                if c is not None:
+                    a["filter_retweet"] = bool(c.filter_retweet)
 
     def _preserve_credentials(self, safe: dict) -> None:
         # 对于 payload 中缺失/为空的凭据，用当前配置中的真实值补齐
