@@ -115,6 +115,11 @@
                 <span class="hint">自动重建需给 AstrBot 容器挂载 /var/run/docker.sock</span>
               </label>
             </div>
+            <label class="field">
+              <span class="label">Docker socket 路径（自动重建容器用）</span>
+              <input type="text" id="x_rsshub_socket" placeholder="/var/run/docker.sock" />
+              <span class="hint">需把该路径挂载进 AstrBot 容器，如 -v /var/run/docker.sock:/var/run/docker.sock</span>
+            </label>
             <div class="field switch-line">
               <span class="label">保存配置时自动应用 Token（重建 RSSHub 容器）</span>
               <input type="checkbox" class="switch" id="x_rsshub_auto_apply" />

@@ -63,8 +63,17 @@ class XRssFetcher(BaseFetcher):
                 f"请换可达实例或自建 RSSHub。")
 
         posts = self._parse_rss(xml, screen)
+        raw_count = len(posts)
         posts = self.apply_account_filters(posts)     # 按账号配置过滤转推
         posts.sort(key=lambda p: p.created_ts, reverse=True)
+        if raw_count == 0:
+            # RSSHub 在 auth_token 失效/被限流时会返回 200 + 空 feed（不报错），
+            # 这是「突然抓不到推文」最常见的原因，必须给出可操作提示。
+            self.logger.warning(
+                f"[{self.account.key}] RSSHub 返回 200 但 0 条推文："
+                f"若该账号原本有推文，多为 TWITTER_AUTH_TOKEN 失效/被限流。"
+                f"排查 docker logs rsshub 是否出现 'is not valid'；"
+                f"修复：WebUI「凭据 / 网络」更新 RSSHub Auth_Token")
         return FetchResult(posts=posts[:limit], total=len(posts))
 
     # ----------------------------------------------------------------

@@ -298,7 +298,18 @@ class CommandsMixin:
             yield event.plain_result(f"抓取失败：{res.error}")
             return
         if not res.posts:
-            yield event.plain_result("该账号暂无帖子")
+            msg = "该账号暂无帖子"
+            # X + RSSHub 时，0 条多半是 auth_token 失效（RSSHub 会返回 200 空 feed，不报错）
+            try:
+                xcreds = self.config.credentials.get("x", {}) or {}
+                if acc.platform == "x" and str(xcreds.get("mode", "")).lower() == "rss":
+                    msg = ("该账号暂无帖子。若该账号原本有推文，通常不是真的没帖子，"
+                           "而是 RSSHub 的 Auth_Token 失效（RSSHub 会返回 200 空 feed）。\n"
+                           "排查：docker logs rsshub 看是否有 'is not valid'；"
+                           "修复：WebUI「凭据 / 网络」更新 RSSHub Auth_Token")
+            except Exception:  # noqa: BLE001
+                pass
+            yield event.plain_result(msg)
             return
         post = res.posts[0]
         # 翻译：主卡片显示译文，原文卡片随附图一起打包

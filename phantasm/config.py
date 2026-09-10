@@ -104,6 +104,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "rsshub_auth_token": "",
             "rsshub_container": "rsshub",       # RSSHub 容器名（重建时用）
             "rsshub_auto_apply": True,          # 保存配置时若 token 变化则自动重建容器
+            "rsshub_docker_socket": "/var/run/docker.sock",   # Docker socket 路径（重建容器用）
             "api_key": "",
             "api_secret": "",
             "access_token": "",
