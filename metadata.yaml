@@ -3,7 +3,7 @@ display_name: Phantasm
 desc: 监听 Bilibili 动态与 X/Twitter 推文的 AstrBot 插件，把新帖渲染成对应平台风格的卡片图片，并自动投递到配置的 QQ 群聊或私聊。支持 REST API 抓取、已处理帖子去重、按账号独立配置投递目标、/phantasm 管理命令与插件设置页
 short_desc: Bilibili / X 发帖监听与平台风格卡片投递
 author: YamaArashiHZ
-version: 1.13.0
+version: 1.13.1
 repo: https://github.com/YamaArashiHZ/astrbot_plugin_phantasm
 social_link: https://github.com/YamaArashiHZ
 support_platforms:
