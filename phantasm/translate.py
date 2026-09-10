@@ -40,6 +40,7 @@ class Translator:
         self.config = config
         self.logger = logger
         self._logged_provider = False      # 首次成功解析模型时打一条 INFO
+        self._last_provider = ""           # 最近一次使用的模型（写进完成日志）
 
     # ----------------------------------------------------------------
     @property
@@ -52,17 +53,32 @@ class Translator:
     def enabled(self) -> bool:
         return bool(self.cfg.get("enabled"))
 
-    def needs_translation(self, text: str) -> bool:
+    def judge(self, text: str, lang: str = "") -> tuple[bool, str]:
+        """判断是否需要翻译，并给出**可读的判断依据**（用于日志留痕）。
+
+        优先用平台给出的语言标记（X 的 ``lang``，如 ``ja``/``zh``），
+        拿不到时退回「中文字符占比」启发式。
+        """
         text = (text or "").strip()
         if not text:
-            return False
+            return False, "正文为空"
         if not self.cfg.get("only_non_chinese", True):
-            return True
+            return True, "已关闭「仅非中文时翻译」，一律翻译"
+        lang = (lang or "").strip().lower()
+        if lang:
+            if lang.startswith("zh"):
+                return False, f"平台标记 lang={lang}（中文）"
+            return True, f"平台标记 lang={lang}（非中文）"
         try:
             threshold = float(self.cfg.get("cjk_threshold", 0.30))
         except (TypeError, ValueError):
             threshold = 0.30
-        return cjk_ratio(text) < threshold
+        r = cjk_ratio(text)
+        cmp = "<" if r < threshold else "≥"
+        return (r < threshold), f"中文字符占比 {r:.2f} {cmp} 阈值 {threshold:.2f}"
+
+    def needs_translation(self, text: str, lang: str = "") -> bool:
+        return self.judge(text, lang)[0]
 
     # ----------------------------------------------------------------
     # Provider 解析：AstrBot 里「配了模型但没设默认」时 get_using_provider() 会返回 None，
@@ -165,8 +181,9 @@ class Translator:
         prov, why = await self.resolve_provider()
         if prov is None:
             raise RuntimeError(why)
+        self._last_provider = why
         if not self._logged_provider:
-            self.logger.info(f"[翻译] 使用模型：{why}")
+            self.logger.info(f"[翻译] 首次解析到模型：{why}")
             self._logged_provider = True
 
         lang = str(self.cfg.get("target_lang", "zh") or "zh")
@@ -192,16 +209,27 @@ class Translator:
         return out
 
     async def maybe_translate(self, post) -> str:
-        """按配置判断并翻译；不需要/失败时返回空串（调用方回退为原文）。"""
+        """按配置判断并翻译；不需要/失败时返回空串（调用方回退为原文）。
+
+        全过程留痕：[翻译] 前缀的日志会记录「是否启用 → 判断依据 → 用哪个模型 → 结果」。
+        """
+        pid = getattr(post, "kebab_id", "?")
         if not self.enabled():
+            self.logger.debug(f"[{pid}] [翻译] 未启用，跳过")
             return ""
         content = (post.content or "").strip()
-        if not self.needs_translation(content):
+        lang = str((getattr(post, "extra", None) or {}).get("lang") or "")
+        need, why = self.judge(content, lang)
+        if not need:
+            self.logger.info(f"[{pid}] [翻译] 跳过：{why}（正文 {len(content)} 字）")
             return ""
+        self.logger.info(f"[{pid}] [翻译] 需要翻译：{why} | 正文 {len(content)} 字 → 调用模型")
         try:
             out = await self.translate(content)
-            self.logger.info(f"[{post.kebab_id}] 已翻译（{len(content)} -> {len(out)} 字）")
-            return out
         except Exception as e:  # noqa: BLE001
-            self.logger.warning(f"[{post.kebab_id}] 翻译失败，回退原文：{e}")
+            self.logger.warning(f"[{pid}] [翻译] 失败，回退原文：{e}")
             return ""
+        self.logger.info(
+            f"[{pid}] [翻译] 完成：{len(content)} 字 → {len(out)} 字"
+            + (f"（模型：{self._last_provider}）" if self._last_provider else ""))
+        return out
