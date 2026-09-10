@@ -174,6 +174,34 @@
         </section>
 
         <section class="card">
+          <div class="card-head"><h2>翻译</h2><p>用 AstrBot 已配置的 LLM 翻译外语正文；主卡片显示译文，原文卡片随附图打包发送</p></div>
+          <div class="card-body">
+            <div class="field switch-line">
+              <span class="label">启用翻译</span>
+              <input type="checkbox" class="switch" id="translate_enabled" />
+            </div>
+            <div class="grid-2">
+              <label class="field">
+                <span class="label">目标语言</span>
+                <input type="text" id="translate_target_lang" placeholder="zh" />
+              </label>
+              <label class="field">
+                <span class="label">超长截断（字符）</span>
+                <input type="number" id="translate_max_chars" min="100" />
+              </label>
+            </div>
+            <div class="field switch-line">
+              <span class="label">仅在正文基本不是中文时才翻译</span>
+              <input type="checkbox" class="switch" id="translate_only_non_chinese" />
+            </div>
+            <label class="field">
+              <span class="label">自定义提示词（留空用内置；支持 {lang} {text}）</span>
+              <textarea id="translate_prompt" rows="3" placeholder="留空使用内置提示词"></textarea>
+            </label>
+          </div>
+        </section>
+
+        <section class="card">
           <div class="card-head"><h2>投递</h2></div>
           <div class="card-body">
             <div class="grid-2">

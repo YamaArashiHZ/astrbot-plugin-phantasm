@@ -13,6 +13,7 @@ import asyncio
 import logging
 import random
 import time
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Optional
 
@@ -27,7 +28,7 @@ from .storage import StorageManager
 class Poller:
     def __init__(self, config: ConfigManager, storage: StorageManager, http: HttpClient,
                  renderer: CardRenderer, sender: Sender, logger: logging.Logger,
-                 data_dir: Path):
+                 data_dir: Path, translator=None):
         self.config = config
         self.storage = storage
         self.http = http
@@ -35,6 +36,7 @@ class Poller:
         self.sender = sender
         self.logger = logger
         self.data_dir = Path(data_dir)
+        self.translator = translator
 
         self._task: Optional[asyncio.Task] = None
         self._lock = asyncio.Lock()
@@ -189,12 +191,26 @@ class Poller:
         return min(100, max(20, max_jobs + 10))
 
     async def _process_post(self, post, account: Account) -> tuple[int, int]:
+        original_card = ""
+        render_post = post
         try:
-            card_path = await self.renderer.render(post, account, self._render_dir())
+            # 翻译：主卡片显示译文，另渲一张原文卡片随附图打包发送
+            if self.translator is not None:
+                tr = await self.translator.maybe_translate(post)
+                if tr:
+                    render_post = replace(post, content=tr,
+                                          extra={**post.extra, "translated": True})
+            card_path = await self.renderer.render(render_post, account, self._render_dir())
+            if render_post is not post:
+                try:
+                    original_card = await self.renderer.render(post, account, self._render_dir())
+                except Exception as e:  # noqa: BLE001
+                    self.logger.warning(f"[{post.kebab_id}] 原文卡片渲染失败（仅发译文卡片）：{e}")
         except Exception as e:  # noqa: BLE001
             self.logger.exception(f"[{post.kebab_id}] 卡片渲染失败：{e}")
             return 0, 0
-        ok, fail = await self.sender.send_post(post, account, card_path)
+        ok, fail = await self.sender.send_post(post, account, card_path,
+                                               original_card=original_card)
         self._cleanup_card(post, account, card_path)
         return ok, fail
 

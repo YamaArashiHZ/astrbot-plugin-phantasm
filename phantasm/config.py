@@ -74,6 +74,14 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "bot_self_id": "",             # 附图打包转发的 bot QQ号（uin）；空则 /视奸 用 event.get_self_id()
         "bot_nickname": "",            # 附图打包转发的显示名（空则用 bot_self_id）
     },
+    "translate": {
+        "enabled": False,              # 是否翻译外语正文（用 AstrBot 已配置的 LLM）
+        "target_lang": "zh",           # 目标语言
+        "only_non_chinese": True,      # 仅当正文基本不是中文时才翻译
+        "cjk_threshold": 0.30,         # 中文字符占比低于该值视为「需要翻译」
+        "max_chars": 1200,             # 超过则截断后再翻译
+        "prompt": "",                  # 留空用内置提示词（支持 {lang} {text} 占位）
+    },
     "network": {
         "proxy_enabled": False,
         "proxy": "http://127.0.0.1:7897",
@@ -198,6 +206,10 @@ class ConfigManager:
     @property
     def send(self) -> dict[str, Any]:
         return self.config.get("send", {})
+
+    @property
+    def translate(self) -> dict[str, Any]:
+        return self.config.get("translate", {})
 
     @property
     def network(self) -> dict[str, Any]:

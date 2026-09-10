@@ -37,6 +37,11 @@ function fillForm(cfg) {
   $("corner_radius").value = cfg.image?.corner_radius ?? 24;
   $("emoji_mode").value = cfg.render?.emoji_mode ?? "strip";
   $("font_path").value = cfg.render?.font_path ?? "";
+  $("translate_enabled").checked = cfg.translate?.enabled === true;
+  $("translate_target_lang").value = cfg.translate?.target_lang ?? "zh";
+  $("translate_max_chars").value = cfg.translate?.max_chars ?? 1200;
+  $("translate_only_non_chinese").checked = cfg.translate?.only_non_chinese !== false;
+  $("translate_prompt").value = cfg.translate?.prompt ?? "";
 
   $("caption_format").value = cfg.send?.caption_format ?? "{platform} · {author} · {time}";
   $("send_caption").checked = !!cfg.send?.send_caption;
@@ -79,6 +84,13 @@ function collect() {
       theme_mode: { bilibili: strVal("theme_bilibili"), x: strVal("theme_x") },
       emoji_mode: strVal("emoji_mode"),
       font_path: strVal("font_path"),
+    },
+    translate: {
+      enabled: boolVal("translate_enabled"),
+      target_lang: strVal("translate_target_lang") || "zh",
+      max_chars: numVal("translate_max_chars", 1200),
+      only_non_chinese: boolVal("translate_only_non_chinese"),
+      prompt: strVal("translate_prompt"),
     },
     send: {
       caption_format: strVal("caption_format"),

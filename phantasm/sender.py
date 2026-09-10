@@ -39,8 +39,12 @@ class Sender:
         self._downloader = fn
 
     # ----------------------------------------------------------------
-    async def send_post(self, post: Post, account: Account, card_path: str) -> tuple[int, int]:
-        """把一张卡片投递到该账号的所有目标。返回 (成功数, 失败数)。"""
+    async def send_post(self, post: Post, account: Account, card_path: str,
+                        original_card: str = "") -> tuple[int, int]:
+        """把一张卡片投递到该账号的所有目标。返回 (成功数, 失败数)。
+
+        ``original_card`` 非空时（翻译场景的「原文卡片」）会并入随后的打包转发消息。
+        """
         caption = self._build_caption(post, account)
         ok, fail = 0, 0
         targets = account.targets
@@ -57,8 +61,9 @@ class Sender:
                 # 1) 一条消息：卡片（+ 文字说明）
                 chain = self._build_chain(post, account, card_path, caption)
                 sent = await self.context.send_message(umo, chain)
-                # 2) 一条消息：附图打包（合并转发）
-                att = await self.build_attachment_forward(post)
+                # 2) 一条消息：原文卡片 + 附图打包（合并转发）
+                att = await self.build_attachment_forward(
+                    post, extra_images=[original_card] if original_card else None)
                 if att is not None:
                     await self.context.send_message(umo, att)
                 if sent:
@@ -104,21 +109,20 @@ class Sender:
         return chain
 
     async def build_attachment_forward(self, post, self_id=None, bot_name=None,
-                                       tmp_dir=None) -> Optional[MessageChain]:
-        """把帖子原始附图打包成一条「合并转发」消息（参考 pixiv_sender 的 Nodes 方式）。
+                                       tmp_dir=None, extra_images=None) -> Optional[MessageChain]:
+        """把「额外图片（如原文卡片）+ 帖子原始附图」打包成一条「合并转发」消息。
 
-        下载附图 -> 生成 ``Nodes`` 转发链；无附图 / 下载失败 / 缺 self_id 时返回 None。
+        无附图且无额外图片时返回 None；缺 self_id 时也返回 None。
         """
         urls = [u for u in (post.media_urls or []) if u][: int(self.send_cfg.get("media_max", 4))]
         sid = str(self_id or self.send_cfg.get("bot_self_id") or "").strip()
+        extras = [p for p in (extra_images or []) if p]
         self.logger.info(
             f"[附图] platform={post.platform} media_urls={len(post.media_urls or [])} "
-            f"可打包={len(urls)} self_id={sid!r} downloader={'有' if self._downloader else '无'}")
-        if self._downloader is None:
-            self.logger.warning("[附图] 无下载器，跳过")
-            return None
-        if not urls:
-            self.logger.info("[附图] 原贴无附图，跳过")
+            f"可打包={len(urls)} 额外图={len(extras)} self_id={sid!r} "
+            f"downloader={'有' if self._downloader else '无'}")
+        if not urls and not extras:
+            self.logger.info("[附图] 无附图/无额外图，跳过转发打包")
             return None
         nm = str(bot_name or self.send_cfg.get("bot_nickname") or "").strip() or sid or "Phantasm"
         if not sid:
@@ -131,18 +135,19 @@ class Sender:
         except OSError:
             self.logger.warning("[附图] 无法创建输出目录，跳过")
             return None
-        paths: list[Path] = []
-        for i, u in enumerate(urls):
-            try:
-                data = await self._downloader(u)
-                p = out_dir / f"{post.post_id}_{i}.jpg"
-                p.write_bytes(data)
-                paths.append(p)
-            except Exception as e:  # noqa: BLE001
-                self.logger.warning(f"[附图] {u[:60]} 下载失败：{e}")
-                continue
+        paths: list[Path] = [Path(p) for p in extras]      # 原文卡片排在最前
+        if urls and self._downloader is not None:
+            for i, u in enumerate(urls):
+                try:
+                    data = await self._downloader(u)
+                    p = out_dir / f"{post.post_id}_{i}.jpg"
+                    p.write_bytes(data)
+                    paths.append(p)
+                except Exception as e:  # noqa: BLE001
+                    self.logger.warning(f"[附图] {u[:60]} 下载失败：{e}")
+                    continue
         if not paths:
-            self.logger.warning("[附图] 附图全部下载失败")
+            self.logger.warning("[附图] 无可用图片（下载全失败）")
             return None
         try:
             from astrbot.api.message_components import Image, Node, Nodes
