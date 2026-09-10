@@ -64,11 +64,13 @@ class WebMixin:
 
     async def _apply_rsshub_token(self, token: str, container: str) -> tuple[bool, str]:
         from .dockerctl import DockerControl
-        ctl = DockerControl(self.logger, getattr(self, "docker_socket", "/var/run/docker.sock"))
+        x = self.config.credentials.get("x") or {}
+        sock = str(x.get("rsshub_docker_socket") or "/var/run/docker.sock").strip()
+        ctl = DockerControl(self.logger, sock or "/var/run/docker.sock")
         if not await ctl.ping():
-            return False, ("无法访问 docker socket（需给 AstrBot 容器挂载 "
-                           "-v /var/run/docker.sock:/var/run/docker.sock）；"
-                           "否则请手动更新 RSSHub 的 TWITTER_AUTH_TOKEN")
+            return False, (f"无法访问 docker socket（{sock}）：需给 AstrBot 容器挂载 "
+                           f"-v {sock}:{sock}（或在「凭据 / 网络」改成实际路径）；"
+                           f"否则请手动更新 RSSHub 的 TWITTER_AUTH_TOKEN")
         return await ctl.recreate_with_env(container, {"TWITTER_AUTH_TOKEN": token})
 
     # ---- 状态 / 统计 ----

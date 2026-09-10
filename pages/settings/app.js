@@ -65,6 +65,7 @@ function fillForm(cfg) {
   $("x_rsshub_token").value = cfg.credentials?.x?.rsshub_auth_token ?? "";
   $("x_rsshub_container").value = cfg.credentials?.x?.rsshub_container ?? "rsshub";
   $("x_rsshub_auto_apply").checked = cfg.credentials?.x?.rsshub_auto_apply !== false;
+  $("x_rsshub_socket").value = cfg.credentials?.x?.rsshub_docker_socket ?? "/var/run/docker.sock";
 
   accounts = (cfg.accounts || []).map((a) => ({
     platform: a.platform, account_id: a.account_id, display_name: a.display_name || "",
@@ -114,6 +115,7 @@ function collect() {
         rsshub_auth_token: strVal("x_rsshub_token"),
         rsshub_container: strVal("x_rsshub_container"),
         rsshub_auto_apply: boolVal("x_rsshub_auto_apply"),
+        rsshub_docker_socket: strVal("x_rsshub_socket") || "/var/run/docker.sock",
       },
     },
     accounts,

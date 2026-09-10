@@ -1,5 +1,13 @@
 # 更新日志
 
+## v1.13.2 (2026-08-29)
+
+- 诊断：RSSHub 返回 200 但 0 条推文时（auth_token 失效/被限流的典型表现）
+  会打明确 WARN，且 `/视奸` 的「该账号暂无帖子」会附带**可操作提示**
+  （查 `docker logs rsshub` 的 `is not valid`、在 WebUI 更新 Token）——此前该提示会误导排查方向。
+- `credentials.x.rsshub_docker_socket`：Docker socket 路径可配置（默认 `/var/run/docker.sock`），
+  失败提示带上实际路径；WebUI 新增对应输入框。
+
 ## v1.13.1 (2026-08-29)
 
 - 修复：重建 RSSHub 容器的健壮性 —— 保留自定义网络别名（重建后同网络仍可用服务名互访）、
