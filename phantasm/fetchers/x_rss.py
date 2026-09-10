@@ -43,7 +43,7 @@ class XRssFetcher(BaseFetcher):
     async def fetch_recent(self, limit: int = 20) -> FetchResult:
         creds = self.config.credential("x") or {}
         if str(creds.get("mode", "api")).lower() != "rss":
-            return self.err_result("X 配置 mode 不是 rss，请设置 credentials.x.mode=rss")
+            return self.err_result("X mode 需为 rss")
         rss_base = str(creds.get("rss_base") or "https://rsshub.app").strip().rstrip("/")
         if not rss_base:
             rss_base = "https://rsshub.app"
@@ -53,26 +53,21 @@ class XRssFetcher(BaseFetcher):
         try:
             buf = await self.http.get_bytes(url, headers={"User-Agent": UA})
         except FetchError as e:
-            return self.err_result(
-                f"RSS 抓取失败：{e}（请确认 RSSHub 实例可达且支持 twitter/user 路由）")
+            return self.err_result(f"RSSHub 抓取失败：{e}")
 
         xml = buf.decode("utf-8", errors="ignore")
         if "<rss" not in xml.lower() and "<feed" not in xml.lower():
-            return self.err_result(
-                f"实例 {rss_base} 未返回 RSS（可能 404/被限流，或该实例不支持 twitter/user 路由）。"
-                f"请换可达实例或自建 RSSHub。")
+            return self.err_result(f"RSSHub 未返回 RSS（{rss_base}）：实例不可用或不支持该路由")
 
         posts = self._parse_rss(xml, screen)
         raw_count = len(posts)
         posts = self.apply_account_filters(posts)     # 按账号配置过滤转推
         posts.sort(key=lambda p: p.created_ts, reverse=True)
         if raw_count == 0:
-            # RSSHub 在 auth_token 失效/被限流时会返回 200 + 空 feed（不报错），
-            # 这是「突然抓不到推文」最常见的原因，必须给出可操作提示。
+            # RSSHub 在 auth_token 失效时会返回 200 + 空 feed（不报错），需给出结论与修复入口
             self.logger.warning(
-                f"[{self.account.key}] RSSHub 返回 200 但 0 条推文："
-                f"若该账号原本有推文，多为 TWITTER_AUTH_TOKEN 失效/被限流。"
-                f"排查 docker logs rsshub 是否出现 'is not valid'；"
+                f"[{self.account.key}] RSSHub 返回 0 条推文（多为 Auth_Token 失效）。"
+                f"排查 `docker logs rsshub | grep 'is not valid'`；"
                 f"修复：WebUI「凭据 / 网络」更新 RSSHub Auth_Token")
         return FetchResult(posts=posts[:limit], total=len(posts))
 

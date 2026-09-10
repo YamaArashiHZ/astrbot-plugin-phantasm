@@ -79,7 +79,7 @@ class BilibiliFetcher(BaseFetcher):
         account_id = self.account.account_id
         cookie = await self._build_cookie()
         if not cookie:
-            return self.err_result("未配置 bilibili Cookie（可仅配置 buvid3/buvid4，或干脆提供完整 Cookie）")
+            return self.err_result("未配置 bilibili Cookie（至少需 buvid3/buvid4，建议含 SESSDATA）")
 
         headers = self._headers(cookie)
         params = {"host_mid": account_id, "timezone_offset": "-480"}
@@ -243,9 +243,7 @@ class BilibiliFetcher(BaseFetcher):
         msg = (data.get("message") or f"code={code}")
         if code in _RISK_CODES or code in (-400,):
             return self.err_result(
-                f"B站触发风控（code {code}）。请为 credentials.bilibili.cookie 填入登录后的 SESSDATA，"
-                f"并适当增大 poll_interval_seconds：{msg}"
-            )
+                f"B站风控（code {code}）：请配置 bilibili Cookie（含 SESSDATA）并调大轮询间隔。{msg}")
         return self.err_result(f"B站接口返回错误（code {code}）：{msg}")
 
     # ----------------------------------------------------------------

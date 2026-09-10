@@ -47,14 +47,14 @@ class XFetcher(BaseFetcher):
         creds = self.config.x_credentials() or {}
         mode = self.config.get("credentials", {}).get("x", {}).get("mode", "api")
         if mode == "scrape":
-            return self.err_result("X 配置 mode=scrape 暂不支持。官方禁止匿名网页抓取，请使用 mode=api 并配置 Bearer Token")
+            return self.err_result("X mode=scrape 不支持：请用 mode=api（Bearer）或 mode=rss（RSSHub）")
         token = (creds.get("bearer_token") or "").strip()
         if not token:
-            return self.err_result("未配置 X Bearer Token（credentials.x.bearer_token）")
+            return self.err_result("未配置 X Bearer Token")
 
         user_id = await self._resolve_user_id()
         if not user_id:
-            return self.err_result("无法解析 X 用户的 user_id，请确认 account_id 为数字 id 或正确的 screen_name")
+            return self.err_result("无法解析 X user_id：account_id 需为数字 id 或正确 screen_name")
 
         url = f"{API_BASE}/users/{user_id}/tweets"
         params = {

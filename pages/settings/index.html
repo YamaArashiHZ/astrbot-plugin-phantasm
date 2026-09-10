@@ -205,6 +205,11 @@
                 <input type="number" id="translate_max_chars" min="100" />
               </label>
             </div>
+            <label class="field">
+              <span class="label">指定模型 ID（留空=自动）</span>
+              <input type="text" id="translate_provider_id" placeholder="留空则用 AstrBot 当前模型，取不到时自动选用任意启用的 LLM" />
+              <span class="hint">若翻译没生效，先用 /phantasm status 看翻译状态与日志里的「[翻译] 使用模型」</span>
+            </label>
             <div class="field switch-line">
               <span class="label">仅在正文基本不是中文时才翻译</span>
               <input type="checkbox" class="switch" id="translate_only_non_chinese" />

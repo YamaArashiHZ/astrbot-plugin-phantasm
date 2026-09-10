@@ -98,10 +98,17 @@ class CommandsMixin:
         render_backend = self.config.render.get("backend", "html")
         html_ok = getattr(getattr(self, "renderer", None), "_html_ok", None)
         live = "HTML" if html_ok else ("Pillow" if html_ok is False else "待定")
+        tr = self.config.translate or {}
+        if tr.get("enabled"):
+            pid = str(tr.get("provider_id") or "").strip()
+            tr_txt = f"开（→{tr.get('target_lang', 'zh')}，模型{pid or '自动'}）"
+        else:
+            tr_txt = "关"
         return (f"👻 Phantasm v{__version__} 状态\n"
                 f"插件启用：{'✅' if self.config.enabled else '⛔'}  |  "
                 f"账号 {len(acc)}（启用 {enabled}）\n"
                 f"渲染：backend={render_backend} | 实际={live}\n"
+                f"翻译：{tr_txt}\n"
                 f"轮询：{poller_txt}\n"
                 f"去重记录：{st.count} 条 | 平台：bilibili / x")
 
@@ -299,14 +306,11 @@ class CommandsMixin:
             return
         if not res.posts:
             msg = "该账号暂无帖子"
-            # X + RSSHub 时，0 条多半是 auth_token 失效（RSSHub 会返回 200 空 feed，不报错）
+            # X + RSSHub 时 0 条多半是 auth_token 失效（RSSHub 返回 200 空 feed 且不报错）
             try:
                 xcreds = self.config.credentials.get("x", {}) or {}
                 if acc.platform == "x" and str(xcreds.get("mode", "")).lower() == "rss":
-                    msg = ("该账号暂无帖子。若该账号原本有推文，通常不是真的没帖子，"
-                           "而是 RSSHub 的 Auth_Token 失效（RSSHub 会返回 200 空 feed）。\n"
-                           "排查：docker logs rsshub 看是否有 'is not valid'；"
-                           "修复：WebUI「凭据 / 网络」更新 RSSHub Auth_Token")
+                    msg = "该账号暂无帖子（X 走 RSSHub 时通常意味着 Auth_Token 失效）"
             except Exception:  # noqa: BLE001
                 pass
             yield event.plain_result(msg)
