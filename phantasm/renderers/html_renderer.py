@@ -183,6 +183,7 @@ body {{ margin:0; background:{bg}; font-family:'cjk','ph-emojis',sans-serif; col
         comment = self._num(post.stats.get("comment", 0))
         forward = self._num(post.stats.get("forward", 0))
         title_html = f'<div class="title">{title}</div>' if title else ""
+        tr_badge = '<div class="tr-badge">译文</div>' if post.extra.get("translated") else ""
         return f"""
 <div class="card" id="card">
   <div class="brand"><span class="brand-pill">Bilibili 动态</span></div>
@@ -194,7 +195,7 @@ body {{ margin:0; background:{bg}; font-family:'cjk','ph-emojis',sans-serif; col
     </div>
   </div>
   {title_html}
-  <div class="content">{content}</div>
+  <div class="content">{tr_badge}{content}</div>
   {media}
   {self._quote_html(post)}
   <div class="stats"><span>点赞 {like}</span><span>评论 {comment}</span><span>转发 {forward}</span></div>
@@ -291,6 +292,8 @@ def build_css(theme: dict, radius: int, platform: str) -> str:
     divider = theme.get("divider", "#eef1f4")
     text = theme.get("text", "#0f1419")
     media_bg = theme.get("media_bg", divider)
+    badge_bg = theme.get("badge_bg", "#3F3F46")
+    badge_fg = theme.get("badge_fg", "#FFFFFF")
     r = max(0, radius)
     return f"""
 #card {{ font-family:'cjk','ph-emojis',sans-serif; }}
@@ -304,8 +307,9 @@ def build_css(theme: dict, radius: int, platform: str) -> str:
 .meta {{ color:{sub}; font-size:14px; margin-top:2px; }}
 .rt-badge {{ margin:2px 0 8px; padding:6px 12px; border-left:3px solid {accent};
             background:{divider}; color:{sub}; font-size:13px; border-radius:6px; }}
-.tr-badge {{ display:inline-block; margin:0 0 6px; padding:2px 10px; border-radius:999px;
-            background:{accent}; color:#fff; font-size:12px; font-weight:600; }}
+.tr-badge {{ display:block; width:fit-content; margin:2px 0 10px; padding:4px 12px;
+            border-radius:8px; background:{badge_bg}; color:{badge_fg};
+            font-size:12px; font-weight:600; line-height:1.45; letter-spacing:.3px; }}
 .quote {{ display:flex; gap:10px; margin:10px 0 4px; padding:12px;
          border:1px solid {divider}; border-radius:14px; background:{media_bg}; }}
 .q-avatar {{ width:34px; height:34px; border-radius:50%; object-fit:cover; flex:0 0 34px; }}

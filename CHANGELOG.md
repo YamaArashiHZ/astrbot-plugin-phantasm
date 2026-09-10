@@ -1,5 +1,13 @@
 # 更新日志
 
+## v1.14.2 (2026-08-29)
+
+- 「译文」徽标样式调整：背景改为**深灰**（浅色主题 `#3F3F46`/白字，深色主题 `#3A3A3A`/浅字），
+  由 `display:inline-block` 改为 `display:block; width:fit-content;`（不再与正文挤在同一行），
+  间距调整为 `margin:2px 0 10px`、`padding:4px 12px`、圆角 8px、字距 0.3px。
+  两色写入主题（`badge_bg` / `badge_fg`），可用 `render.theme` / `render.dark_theme` 覆盖。
+- 修复遗漏：**Bilibili 卡片此前不显示「译文」徽标**（只有 X 卡片有），现已接入。
+
 ## v1.14.1 (2026-08-29)
 
 - **修复：翻译生效但卡片显示原文**（HTML 后端）。输出文件名原本由 `(post_id, created_ts)` 推导，
