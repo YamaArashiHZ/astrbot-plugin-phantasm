@@ -48,7 +48,17 @@
           </div>
         </header>
 
-        <section class="card">
+        <div class="toolbar">
+          <nav class="tabs" id="tabs">
+            <button class="tab" data-tab="accounts">账号管理</button>
+            <button class="tab" data-tab="render">渲染 / 翻译</button>
+            <button class="tab" data-tab="send">投递</button>
+            <button class="tab" data-tab="creds">凭据 / 网络</button>
+            <button class="tab" data-tab="status">状态</button>
+          </nav>
+        </div>
+
+        <section class="card tabpanel" data-tab="send">
           <div class="card-head"><h2>全局</h2></div>
           <div class="card-body">
             <div class="grid-2">
@@ -68,7 +78,7 @@
           </div>
         </section>
 
-        <section class="card">
+        <section class="card tabpanel" data-tab="creds">
           <div class="card-head"><h2>平台凭据</h2><p>仅保存在本地配置，日志/页面不回显明文</p></div>
           <div class="card-body">
             <label class="field">
@@ -115,7 +125,7 @@
           </div>
         </section>
 
-        <section class="card">
+        <section class="card tabpanel" data-tab="render">
           <div class="card-head"><h2>渲染</h2></div>
           <div class="card-body">
             <label class="field">
@@ -173,7 +183,7 @@
           </div>
         </section>
 
-        <section class="card">
+        <section class="card tabpanel" data-tab="render">
           <div class="card-head"><h2>翻译</h2><p>用 AstrBot 已配置的 LLM 翻译外语正文；主卡片显示译文，原文卡片随附图打包发送</p></div>
           <div class="card-body">
             <div class="field switch-line">
@@ -201,7 +211,7 @@
           </div>
         </section>
 
-        <section class="card">
+        <section class="card tabpanel" data-tab="send">
           <div class="card-head"><h2>投递</h2></div>
           <div class="card-body">
             <div class="grid-2">
@@ -240,7 +250,7 @@
           </div>
         </section>
 
-        <section class="card">
+        <section class="card tabpanel" data-tab="creds">
           <div class="card-head"><h2>网络</h2></div>
           <div class="card-body">
             <div class="grid-2">
@@ -260,7 +270,7 @@
           </div>
         </section>
 
-        <section class="card">
+        <section class="card tabpanel" data-tab="accounts">
           <div class="card-head"><h2>账号订阅</h2><p>每个账号可独立配置投递目标</p></div>
           <div class="card-body" id="accounts-box">
             <div class="empty">加载中…</div>
@@ -282,15 +292,15 @@
             <button class="btn danger" id="btn-clear">清空记录</button>
           </div>
         </header>
-        <section class="card"><div class="card-body" id="status-detail">加载中…</div></section>
-        <section class="card"><div class="card-head"><h2>近期生成的卡片</h2></div><div class="card-body" id="cards-list"><div class="empty">加载中…</div></div></section>
+        <section class="card tabpanel" data-tab="status"><div class="card-body" id="status-detail">加载中…</div></section>
+        <section class="card tabpanel" data-tab="status"><div class="card-head"><h2>近期生成的卡片</h2></div><div class="card-body" id="cards-list"><div class="empty">加载中…</div></div></section>
       </section>
 
       <!-- ========== 详情视图 ========== -->
       <section id="view-about" class="view">
         <header class="page-head"><div class="page-head-text"><h1>详情</h1><p>Phantasm 插件信息</p></div></header>
-        <section class="card"><div class="card-body info-grid" id="about-info">加载中…</div></section>
-        <section class="card"><div class="card-body tips">
+        <section class="card tabpanel" data-tab="status"><div class="card-body info-grid" id="about-info">加载中…</div></section>
+        <section class="card tabpanel" data-tab="status"><div class="card-body tips">
           <ul>
             <li>命令：<code>/phantasm</code>、<code>/phantasm check</code>、<code>/phantasm list</code>、<code>/phantasm add|del|target</code></li>
             <li>B站抓取用 Cookie；X 用官方 API v2 Bearer Token。详见 README。</li>
