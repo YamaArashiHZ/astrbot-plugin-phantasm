@@ -71,6 +71,9 @@ class CommandsMixin:
             yield self._require_admin(event, lambda: self._cmd_alias(rest))
         elif cmd in ("retweet", "rt", "转推"):
             yield self._require_admin(event, lambda: self._cmd_retweet(rest))
+        elif cmd in ("tr", "translate", "翻译"):
+            async for r in self._cmd_tr(event):
+                yield r
         elif cmd in ("pause", "暂停"):
             yield self._require_admin(event, lambda: self._cmd_pause())
         elif cmd in ("resume", "恢复"):
@@ -269,6 +272,31 @@ class CommandsMixin:
         return (f"已{'开启' if enabled else '关闭'} {platform}:{account_id} 的转推过滤"
                 f"（{'转推不再投递' if enabled else '转推照常投递'}）")
 
+    async def _cmd_tr(self, event: AstrMessageEvent) -> "async generator":
+        """`/phantasm tr <文本>`：用当前模型试翻译一次，用于排查翻译是否可用。"""
+        args = self._split_args(event)
+        if args and args[0].lower() in ("tr", "translate", "翻译"):
+            args = args[1:]
+        text = " ".join(args).strip()
+        if not text:
+            yield event.plain_result("用法：/phantasm tr <文本>（用当前模型试翻译，排查翻译链路）")
+            return
+        t = getattr(self, "translator", None)
+        if t is None:
+            yield event.plain_result("翻译器未初始化")
+            return
+        if not t.enabled():
+            yield event.plain_result("翻译未启用：WebUI「渲染 / 翻译」里打开「启用翻译」后保存")
+            return
+        need, why = t.judge(text, "")
+        try:
+            out = await t.translate(text)
+        except Exception as e:  # noqa: BLE001
+            yield event.plain_result(f"判断：{why}\n模型：{t._last_provider or '未解析到'}\n翻译失败：{e}")
+            return
+        yield event.plain_result(
+            f"判断：{why}\n模型：{t._last_provider or '未解析到'}\n译文：{out[:300]}")
+
     async def _cmd_watch(self, event: AstrMessageEvent) -> "async generator":
         """`/视奸 <代称>`：输出该账号最新一条（说明+卡片，附图单独打包），全局冷却。"""
         args = self._split_args(event)
@@ -401,6 +429,7 @@ class CommandsMixin:
                 "/phantasm target <p> <id> clear\n"
                 "/phantasm alias <p> <id> <代称>   设置代称\n"
                 "/phantasm retweet <p> <id> on|off 过滤转推\n"
+                "/phantasm tr <文本>            试翻译（排查翻译）\n"
                 "/phantasm pause|resume         暂停/恢复")
 
     def _apply_summary(self, summary: dict) -> str:
