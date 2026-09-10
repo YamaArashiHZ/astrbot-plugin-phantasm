@@ -212,6 +212,8 @@ class Poller:
         ok, fail = await self.sender.send_post(post, account, card_path,
                                                original_card=original_card)
         self._cleanup_card(post, account, card_path)
+        if original_card:
+            self._cleanup_card(post, account, original_card)
         return ok, fail
 
     def _render_dir(self) -> Path:

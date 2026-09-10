@@ -349,6 +349,10 @@ class CommandsMixin:
                 self.logger.warning(f"发送附图转发失败：{e}")
         else:
             self.logger.info("[附图] 未生成附图转发(见上方 [附图] 日志)")
+        # 按 output_mode=temp 清理本轮渲染的卡片
+        self.poller._cleanup_card(post, acc, card)
+        if original_card:
+            self.poller._cleanup_card(post, acc, original_card)
 
     def _find_account(self, alias: str):
         for a in self.config.accounts():
