@@ -183,7 +183,7 @@ body {{ margin:0; background:{bg}; font-family:'cjk','ph-emojis',sans-serif; col
         comment = self._num(post.stats.get("comment", 0))
         forward = self._num(post.stats.get("forward", 0))
         title_html = f'<div class="title">{title}</div>' if title else ""
-        tr_badge = '<div class="tr-badge">译文</div>' if post.extra.get("translated") else ""
+
         return f"""
 <div class="card" id="card">
   <div class="brand"><span class="brand-pill">Bilibili 动态</span></div>
@@ -195,7 +195,8 @@ body {{ margin:0; background:{bg}; font-family:'cjk','ph-emojis',sans-serif; col
     </div>
   </div>
   {title_html}
-  <div class="content">{tr_badge}{content}</div>
+  <div class="content">{content}</div>
+  {self._translated_note(post)}
   {media}
   {self._quote_html(post)}
   <div class="stats"><span>点赞 {like}</span><span>评论 {comment}</span><span>转发 {forward}</span></div>
@@ -221,7 +222,7 @@ body {{ margin:0; background:{bg}; font-family:'cjk','ph-emojis',sans-serif; col
         if post.extra.get("is_retweet"):
             rt = _html.escape(post.extra.get("rt_author") or ("@" + post.account_id))
             rt_badge = f'<div class="rt-badge">转推 {rt}</div>'
-        tr_badge = '<div class="tr-badge">译文</div>' if post.extra.get("translated") else ""
+
         return f"""
 <div class="card xcard" id="card">
   <div class="brand"><span class="brand-pill">X / Twitter</span></div>
@@ -233,7 +234,8 @@ body {{ margin:0; background:{bg}; font-family:'cjk','ph-emojis',sans-serif; col
     </div>
   </div>
   {rt_badge}
-  <div class="content">{tr_badge}{content}</div>
+  <div class="content">{content}</div>
+  {self._translated_note(post)}
   {media}
   {self._quote_html(post)}
   {stats_html}
@@ -248,6 +250,20 @@ body {{ margin:0; background:{bg}; font-family:'cjk','ph-emojis',sans-serif; col
         cls = "grid2" if n == 2 else ("grid3" if n == 3 else ("grid4" if n == 4 else "grid1"))
         imgs = "".join(f'<img class="media" src="{self._img(u)}" />' for u in urls)
         return f'<div class="media-wrap {cls}">{imgs}</div>'
+
+    _TR_ICON = ('<svg width="15" height="15" viewBox="0 0 24 24" fill="none" '
+                'stroke="currentColor" stroke-width="1.9" stroke-linecap="round" '
+                'stroke-linejoin="round"><circle cx="12" cy="12" r="9"/>'
+                '<path d="M3 12h18"/><path d="M12 3c2.6 3.2 2.6 14.8 0 18"/>'
+                '<path d="M12 3c-2.6 3.2-2.6 14.8 0 18"/></svg>')
+
+    def _translated_note(self, post) -> str:
+        """仿 X 的「翻译自 日语」：正文下方一行小字（不再用胶囊徽标）。"""
+        if not post.extra.get("translated"):
+            return ""
+        src = str(post.extra.get("translated_from") or "").strip()
+        label = f"翻译自 {src}" if src else "已翻译"
+        return f'<div class="tr-note">{self._TR_ICON}<span>{_html.escape(label)}</span></div>'
 
     def _quote_html(self, post) -> str:
         """把被引用的帖子渲染成主卡片内的「子卡片」（引用块）。"""
@@ -292,8 +308,6 @@ def build_css(theme: dict, radius: int, platform: str) -> str:
     divider = theme.get("divider", "#eef1f4")
     text = theme.get("text", "#0f1419")
     media_bg = theme.get("media_bg", divider)
-    badge_bg = theme.get("badge_bg", "#3F3F46")
-    badge_fg = theme.get("badge_fg", "#FFFFFF")
     r = max(0, radius)
     return f"""
 #card {{ font-family:'cjk','ph-emojis',sans-serif; }}
@@ -307,9 +321,9 @@ def build_css(theme: dict, radius: int, platform: str) -> str:
 .meta {{ color:{sub}; font-size:14px; margin-top:2px; }}
 .rt-badge {{ margin:2px 0 8px; padding:6px 12px; border-left:3px solid {accent};
             background:{divider}; color:{sub}; font-size:13px; border-radius:6px; }}
-.tr-badge {{ display:block; width:fit-content; margin:2px 0 10px; padding:4px 12px;
-            border-radius:8px; background:{badge_bg}; color:{badge_fg};
-            font-size:12px; font-weight:600; line-height:1.45; letter-spacing:.3px; }}
+.tr-note {{ display:flex; align-items:center; gap:5px; margin:2px 0 12px;
+           color:{sub}; font-size:13px; line-height:1.4; }}
+.tr-note svg {{ flex:0 0 auto; opacity:.85; }}
 .quote {{ display:flex; gap:10px; margin:10px 0 4px; padding:12px;
          border:1px solid {divider}; border-radius:14px; background:{media_bg}; }}
 .q-avatar {{ width:34px; height:34px; border-radius:50%; object-fit:cover; flex:0 0 34px; }}

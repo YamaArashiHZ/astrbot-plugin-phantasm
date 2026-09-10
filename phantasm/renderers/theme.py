@@ -17,8 +17,6 @@ DEFAULT_THEMES: dict[str, dict[str, str]] = {
         "accent": "#00AEEC",       # B 站蓝
         "media_bg": "#F1F2F3",
         "divider": "#E3E5E7",
-        "badge_bg": "#3F3F46",
-        "badge_fg": "#FFFFFF",
     },
     "x": {
         "primary": "#000000",      # X 黑
@@ -43,8 +41,6 @@ DEFAULT_DARK_THEMES: dict[str, dict[str, str]] = {
         "accent": "#00AEEC",
         "media_bg": "#2A2C31",
         "divider": "#33363C",
-        "badge_bg": "#3A3A3A",
-        "badge_fg": "#E7E9EA",
     },
     "x": {
         "primary": "#1D9BF0",

@@ -316,8 +316,9 @@ class CommandsMixin:
         lines = [f"目标语言：{t.target_lang()}"]
         # 1) 自动模式：由模型判定是否需要翻译
         try:
-            out = await t.translate(text, allow_skip=True)
-            lines.append("自动判定：模型认为**需要翻译**")
+            out, src = await t.translate(text, allow_skip=True)
+            lines.append("自动判定：模型认为**需要翻译**"
+                         + (f"（源语言：{src}）" if src else ""))
             lines.append(f"译文：{out[:300]}")
         except TranslationSkipped:
             lines.append("自动判定：模型认为**已是目标语言**，无需翻译")
@@ -379,10 +380,12 @@ class CommandsMixin:
         translator = getattr(self, "translator", None)
         if translator is not None:
             try:
-                tr = await translator.maybe_translate(post, acc)
+                tr, src = await translator.maybe_translate(post, acc)
                 if tr:
-                    render_post = replace(post, content=tr,
-                                          extra={**post.extra, "translated": True})
+                    extra = {**post.extra, "translated": True}
+                    if src:
+                        extra["translated_from"] = src
+                    render_post = replace(post, content=tr, extra=extra)
             except Exception as e:  # noqa: BLE001
                 self.logger.warning(f"翻译异常（回退原文）：{e}")
         try:
