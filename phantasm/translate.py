@@ -39,6 +39,7 @@ class Translator:
         self.context = context
         self.config = config
         self.logger = logger
+        self._logged_provider = False      # 首次成功解析模型时打一条 INFO
 
     # ----------------------------------------------------------------
     @property
@@ -63,15 +64,91 @@ class Translator:
             threshold = 0.30
         return cjk_ratio(text) < threshold
 
-    def _provider(self):
-        for name in ("get_using_provider", "get_using_provider_async"):
-            fn = getattr(self.context, name, None)
+    # ----------------------------------------------------------------
+    # Provider 解析：AstrBot 里「配了模型但没设默认」时 get_using_provider() 会返回 None，
+    # 所以必须逐级兜底，否则翻译会静默失效。
+    # ----------------------------------------------------------------
+    @staticmethod
+    def _prov_candidates(context) -> list:
+        """尽力列出 AstrBot 里可用的 provider（不同版本字段名不同，全部做防御）。"""
+        out: list = []
+        for attr in ("get_all_providers", "get_providers"):
+            fn = getattr(context, attr, None)
             if callable(fn):
                 try:
-                    return fn()
-                except Exception as e:  # noqa: BLE001
-                    self.logger.debug(f"{name} 调用失败：{e}")
-        return None
+                    v = fn()
+                    if isinstance(v, (list, tuple)):
+                        out.extend(v)
+                    elif isinstance(v, dict):
+                        out.extend(v.values())
+                except Exception:  # noqa: BLE001
+                    pass
+        if out:
+            return out
+        pm = getattr(context, "provider_manager", None)
+        if pm is None:
+            return []
+        for attr in ("providers", "inst_map", "provider_map"):
+            v = getattr(pm, attr, None)
+            if isinstance(v, (list, tuple)):
+                out.extend(v)
+            elif isinstance(v, dict):
+                out.extend(v.values())
+        return out
+
+    @staticmethod
+    def _prov_label(prov) -> str:
+        try:
+            meta = prov.meta() if callable(getattr(prov, "meta", None)) else None
+            return str(getattr(meta, "id", "") or getattr(meta, "model", "") or "").strip()
+        except Exception:  # noqa: BLE001
+            return ""
+
+    def _is_enabled(self, prov) -> bool:
+        cfg = getattr(prov, "provider_config", None)
+        if isinstance(cfg, dict) and cfg.get("enable") is False:
+            return False
+        return True
+
+    async def resolve_provider(self):
+        """返回 (provider, 来源说明)；找不到返回 (None, 原因)。"""
+        # 1) 指定 id 优先
+        want = str(self.cfg.get("provider_id") or "").strip()
+        cands = self._prov_candidates(self.context)
+        if want and cands:
+            for p in cands:
+                if self._prov_label(p) == want and hasattr(p, "text_chat"):
+                    return p, f"配置指定({want})"
+        # 2) 当前生效的 provider（同步）
+        fn = getattr(self.context, "get_using_provider", None)
+        if callable(fn):
+            try:
+                p = fn()
+                if p is not None and hasattr(p, "text_chat"):
+                    return p, "AstrBot 当前模型"
+            except Exception as e:  # noqa: BLE001
+                self.logger.debug(f"get_using_provider 失败：{e}")
+        # 3) 当前生效的 provider（异步版本）
+        fna = getattr(self.context, "get_using_provider_async", None)
+        if callable(fna):
+            try:
+                p = fna()
+                if hasattr(p, "__await__"):
+                    p = await p
+                if p is not None and hasattr(p, "text_chat"):
+                    return p, "AstrBot 当前模型(async)"
+            except Exception as e:  # noqa: BLE001
+                self.logger.debug(f"get_using_provider_async 失败：{e}")
+        # 4) 兜底：任意一个启用中的对话模型
+        for p in cands:
+            try:
+                if hasattr(p, "text_chat") and self._is_enabled(p):
+                    return p, f"自动选用({self._prov_label(p) or 'unknown'})"
+            except Exception:  # noqa: BLE001
+                continue
+        if want:
+            return None, f"未找到 provider_id={want} 的模型，且没有其它可用模型"
+        return None, "AstrBot 里没有可用的对话模型（服务提供商里需配置并启用一个 LLM）"
 
     async def translate(self, text: str) -> str:
         """返回译文；失败抛异常（由调用方决定是否降级为原文）。"""
@@ -85,9 +162,12 @@ class Translator:
         if max_chars > 0 and len(text) > max_chars:
             text = text[:max_chars]
 
-        prov = self._provider()
+        prov, why = await self.resolve_provider()
         if prov is None:
-            raise RuntimeError("AstrBot 未配置可用的 LLM Provider（请先在 AstrBot 里配置模型）")
+            raise RuntimeError(why)
+        if not self._logged_provider:
+            self.logger.info(f"[翻译] 使用模型：{why}")
+            self._logged_provider = True
 
         lang = str(self.cfg.get("target_lang", "zh") or "zh")
         tpl = str(self.cfg.get("prompt") or "").strip() or DEFAULT_PROMPT
@@ -108,7 +188,7 @@ class Translator:
         # 去掉 LLM 偶尔加的包裹引号
         out = re.sub(r'^["“”\']+|["“”\']+$', "", out).strip()
         if not out:
-            raise RuntimeError("LLM 返回了空译文")
+            raise RuntimeError("模型返回了空译文")
         return out
 
     async def maybe_translate(self, post) -> str:

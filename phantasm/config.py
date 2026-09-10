@@ -80,6 +80,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "only_non_chinese": True,      # 仅当正文基本不是中文时才翻译
         "cjk_threshold": 0.30,         # 中文字符占比低于该值视为「需要翻译」
         "max_chars": 1200,             # 超过则截断后再翻译
+        "provider_id": "",             # 指定用哪个模型（留空=自动：当前模型→任一启用模型）
         "prompt": "",                  # 留空用内置提示词（支持 {lang} {text} 占位）
     },
     "network": {

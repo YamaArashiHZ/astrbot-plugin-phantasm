@@ -44,6 +44,7 @@ function fillForm(cfg) {
   $("translate_max_chars").value = cfg.translate?.max_chars ?? 1200;
   $("translate_only_non_chinese").checked = cfg.translate?.only_non_chinese !== false;
   $("translate_prompt").value = cfg.translate?.prompt ?? "";
+  $("translate_provider_id").value = cfg.translate?.provider_id ?? "";
 
   $("caption_format").value = cfg.send?.caption_format ?? "{platform} · {author} · {time}";
   $("send_caption").checked = !!cfg.send?.send_caption;
@@ -93,6 +94,7 @@ function collect() {
       target_lang: strVal("translate_target_lang") || "zh",
       max_chars: numVal("translate_max_chars", 1200),
       only_non_chinese: boolVal("translate_only_non_chinese"),
+      provider_id: strVal("translate_provider_id"),
       prompt: strVal("translate_prompt"),
     },
     send: {
