@@ -101,6 +101,11 @@ class WebMixin:
     # ----------------------------------------------------------------
     def _config_for_web(self) -> dict[str, Any]:
         cfg = copy.deepcopy(self.config.config)
+        try:
+            from . import __version__ as _v
+            cfg["version"] = _v
+        except Exception:  # noqa: BLE001
+            pass
         # 凭据脱敏（不回显明文）
         creds = cfg.setdefault("credentials", {})
         bil = creds.setdefault("bilibili", {})

@@ -73,3 +73,25 @@ body { margin: 0; font: 14px/1.5 -apple-system, "Segoe UI", "Microsoft YaHei", s
 .target-form select, .target-form input { padding:7px 9px; border:1px solid var(--border); border-radius:8px; font-size:13px; }
 .target-form input { flex:1; min-width:120px; }
 
+
+
+/* ---------- 分页（tabpanel） ---------- */
+.toolbar {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin: 0 0 14px; padding: 8px 4px;
+  background: var(--bg, #f6f7f9);
+  border-bottom: 1px solid var(--border, #e3e5e7);
+}
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.tab {
+  padding: 8px 16px; border: 1px solid transparent; border-radius: 999px;
+  background: transparent; color: var(--muted, #6b7280); font-size: 14px; cursor: pointer;
+}
+.tab:hover { background: var(--hover, rgba(0,0,0,.05)); }
+.tab.active {
+  background: var(--accent, #1d9bf0); border-color: var(--accent, #1d9bf0);
+  color: #fff; font-weight: 600;
+}
+.tabpanel { display: none; }
+.tabpanel.active { display: block; }

@@ -25,7 +25,9 @@ function boolVal(id) { return !!$(id)?.checked; }
 function strVal(id) { return ($(id)?.value ?? "").trim(); }
 
 // ---------- 配置 -> 表单 ----------
+let cfgVersion = "";
 function fillForm(cfg) {
+  cfgVersion = cfg.version || "";
   $("enabled").checked = !!cfg.enabled;
   $("poll_interval_seconds").value = cfg.poll_interval_seconds ?? 300;
   $("poll_jitter_seconds").value = cfg.poll_jitter_seconds ?? 10;
@@ -397,9 +399,29 @@ function setupNav() {
   });
 }
 
+function setupTabs() {
+  const nav = $("tabs");
+  if (!nav) return;
+  const btns = Array.from(nav.querySelectorAll(".tab"));
+  const panels = Array.from(document.querySelectorAll(".tabpanel"));
+  if (!btns.length) return;
+  const names = btns.map((b) => b.dataset.tab);
+  function activate(name, persist) {
+    btns.forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
+    panels.forEach((p) => p.classList.toggle("active", p.dataset.tab === name));
+    if (persist) { try { localStorage.setItem("phantasm_tab", name); } catch (e) { /* ignore */ } }
+  }
+  btns.forEach((b) => b.addEventListener("click", () => activate(b.dataset.tab, true)));
+  let saved = "accounts";
+  try { saved = localStorage.getItem("phantasm_tab") || "accounts"; } catch (e) { /* ignore */ }
+  if (!names.includes(saved)) saved = "accounts";
+  activate(saved, false);
+}
+
 async function init() {
   const ctx = await bridge.ready();
   setupNav();
+  setupTabs();
   initSmoothWheelScroll();
   $("btn-save").addEventListener("click", saveConfig);
   $("btn-apply-rsshub")?.addEventListener("click", applyRsshubToken);
@@ -407,12 +429,12 @@ async function init() {
   $("btn-clear").addEventListener("click", doClear);
   $("confirm-ok").addEventListener("click", () => closeConfirm(true));
   $("confirm-cancel").addEventListener("click", () => closeConfirm(false));
+  await loadConfig();
   $("about-info").innerHTML = `
     <div class="info-item"><span class="info-label">名称</span><b>astrbot_plugin_phantasm</b></div>
     <div class="info-item"><span class="info-label">显示名</span><b>Phantasm</b></div>
-    <div class="info-item"><span class="info-label">版本</span><b>1.0.0</b></div>
+    <div class="info-item"><span class="info-label">版本</span><b>${cfgVersion || "-"}</b></div>
     <div class="info-item"><span class="info-label">能力</span><b>Bilibili / X 发帖监听 · 卡片投递</b></div>`;
-  await loadConfig();
   if (ctx?.isDark) document.documentElement.classList.add("dark");
 }
 
