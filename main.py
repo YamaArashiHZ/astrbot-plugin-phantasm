@@ -71,6 +71,9 @@ class PhantasmPlugin(CommandsMixin, WebMixin, Star):
             f"/{plugin_name}/history/clear", self.web_clear_history, ["POST"], "清空已处理记录")
         context.register_web_api(
             f"/{plugin_name}/cards", self.web_get_cards, ["GET"], "查看近期生成的卡片")
+        context.register_web_api(
+            f"/{plugin_name}/rsshub/apply", self.web_apply_rsshub_token, ["POST"],
+            "把 RSSHub Auth_Token 应用到容器（重建 RSSHub）")
 
     # ------------------------------------------------------------------
     # 命令：/phantasm
