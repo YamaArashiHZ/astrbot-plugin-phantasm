@@ -221,6 +221,7 @@ class ConfigManager:
                 account_id=str(raw.get("account_id", "")).strip(),
                 display_name=str(raw.get("display_name", "")).strip(),
                 enabled=bool(raw.get("enabled", True)),
+                filter_retweet=bool(raw.get("filter_retweet", False)),
                 targets=_parse_targets(raw.get("targets", [])),
             )
             if acc.platform and acc.account_id:
@@ -300,6 +301,17 @@ class ConfigManager:
             if (str(a.get("platform", "")).strip().lower() == platform
                     and str(a.get("account_id", "")).strip() == str(account_id).strip()):
                 a["display_name"] = str(name or "").strip()
+                self.save()
+                return True
+        return False
+
+    def set_account_filter_retweet(self, platform: str, account_id: str, enabled: bool) -> bool:
+        """按账号开关「过滤转推」：开启后不投递 RT。"""
+        platform = platform.strip().lower()
+        for a in self.config.get("accounts", []):
+            if (str(a.get("platform", "")).strip().lower() == platform
+                    and str(a.get("account_id", "")).strip() == str(account_id).strip()):
+                a["filter_retweet"] = bool(enabled)
                 self.save()
                 return True
         return False

@@ -82,6 +82,7 @@ class XFetcher(BaseFetcher):
         for tweet in data.get("data") or []:
             posts.append(self._parse_tweet(tweet, users_map, media_map, account_id=self.account.account_id, screen=self.account.account_id))
         posts = [p for p in posts if p]
+        posts = self.apply_account_filters(posts)     # 按账号配置过滤转推
         posts.sort(key=lambda p: p.created_ts, reverse=True)
         return FetchResult(posts=posts[:limit], total=len(posts))
 
@@ -206,6 +207,7 @@ class XFetcher(BaseFetcher):
                     "verified_type": user.get("verified_type") or "",
                     "media_types": media_types,
                     "lang": tweet.get("lang") or "",
+                    "is_retweet": is_retweet,
                 },
             )
         except Exception as e:  # noqa: BLE001
